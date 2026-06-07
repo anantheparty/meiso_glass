@@ -1,47 +1,82 @@
 # Meiso Glass
 
-Meiso Glass is the working repository for the AR glasses endpoint and SDC SDK.
+Meiso Glass 是一个面向 AR 眼镜端侧设备和 SDC 设备的平台中立 SDK 骨架。
 
-The project is still in hardware bring-up and SDK draft stage. The current goal
-is to define stable protocol, replay, simulation, and host tooling boundaries
-before binding the SDK to a specific board image, radio, camera, or Jetson
-runtime.
+这个仓库刻意把开放 SDK 契约和任何单一原型平台分开。i.MX 8M Mini、Jetson Orin Nano、LR2021、HM0360 等器件可以作为平台配置 profile 或 adapter 出现，但 SDK 核心应当能被其它 Linux SBC、自定义端侧板、模拟设备以及未来的视频/无线传输方案复用。
 
-## Hardware Context
+## 当前范围
 
-- Endpoint candidate: i.MX 8M Mini development board for early interface and
-  BSP validation.
-- Endpoint peripheral validation target: HM0360 low-power vision, GW1NZ-2
-  helper, LR2021 telemetry radio, nRF54L15 command receiver, ICM-45686 IMU,
-  and two T5838 PDM microphones.
-- SDC candidate: Jetson Orin Nano / Orin NX class SBC or SOM.
-- High-bandwidth path: Wi-Fi between SDC and glasses endpoint.
-- Low-power telemetry path: endpoint sensor island to SDC over LR2021-class
-  telemetry.
+- 控制面：基于 UDP JSON 的 `heartbeat`、`health`、命令、ACK、错误和事件消息。
+- 视频冒烟测试：基于 GStreamer 的 H.264/RTP/UDP，默认使用 `videotestsrc`。
+- 健康探针：采集 OS、网络、存储、视频设备以及可选平台提示信息。
+- 配置 profile：优先提供通用 Linux 示例；板卡专用配置放在 `configs/platforms/`。
+- 运行时角色：`endpoint` 表示眼镜侧设备，`sdc` 表示口袋/主机侧空间数据计算设备，`host` 表示开发工具。
 
-## SDK Direction
+## 安装
 
-The first SDK pass should focus on interfaces that can be developed before the
-final hardware is available:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
 
-- telemetry schemas for IMU, low-power vision, eye hints, audio wake events,
-  thermal state, battery state, and rail power samples
-- command schemas for power mode, display mode, sensor enablement, radio policy,
-  calibration state, and session control
-- transport abstraction for serial, UDP/TCP, Wi-Fi, BLE, LR2021, and file replay
-- fake endpoint simulator for SDC-side development
-- record, replay, and inspect tools for logs and protocol traces
+## 本地冒烟测试
 
-## Initial Milestones
+终端 A：
 
-1. Define protocol and capability schemas.
-2. Implement a fake endpoint that emits deterministic telemetry.
-3. Implement record/replay tooling for local development.
-4. Add adapters for the i.MX 8M Mini bring-up board.
-5. Add SDC runtime adapters for Jetson Orin Nano once the SBC is connected.
+```bash
+meiso-sdc --config configs/examples/sdc.generic.yaml
+```
 
-## Repository Status
+终端 B：
 
-This repository is newly initialized. Hardware-specific code should remain
-behind adapters until the i.MX 8M Mini endpoint wiring, device tree changes, and
-SDC runtime targets are stable.
+```bash
+meiso-endpoint --config configs/examples/endpoint.generic.yaml
+```
+
+终端 C：
+
+```bash
+meiso-send --host 127.0.0.1 --port 42001 ping
+meiso-send --host 127.0.0.1 --port 42001 health
+```
+
+## 项目结构
+
+```text
+src/meiso_glass/        SDK 包
+configs/examples/       平台中立示例配置
+configs/platforms/      板卡专用上电调试 profile
+scripts/                可移植的开发/探针/视频冒烟脚本
+docs/                   架构、协议、首次运行、日志说明
+systemd/                通用 service 模板
+tests/                  聚焦 SDK 契约的测试
+```
+
+应用层代码可以先使用 `meiso_glass.api.EndpointClient` 和 `meiso_glass.api.SDCRegistry`，不必直接手写 UDP 消息。
+
+## 文档
+
+- [文档索引](docs/README.md)
+- [SDK 架构](docs/architecture/SDK_ARCHITECTURE.md)
+- [消息协议](docs/protocol/MESSAGE_PROTOCOL.md)
+- [遥测包格式](docs/protocol/TELEMETRY_PACKET_FORMAT.md)
+- [硬件 Adapter API](docs/adapters/HARDWARE_ADAPTER_API.md)
+- [Mock/模拟器指南](docs/adapters/MOCK_SIMULATOR_GUIDE.md)
+- [首次运行](docs/guides/FIRST_RUN.md)
+- [平台移植指南](docs/guides/PLATFORM_PORTING_GUIDE.md)
+- [兼容性检查清单](docs/guides/COMPATIBILITY_CHECKLIST.md)
+- [功耗基准指南](docs/benchmarks/POWER_BENCHMARK_GUIDE.md)
+- [功耗和延迟日志](docs/benchmarks/POWER_AND_LATENCY_LOGGING.md)
+- [参考平台：i.MX8MM + Orin](docs/platforms/REFERENCE_PLATFORM_IMX8MM_ORIN.md)
+- [从 arglasses_dual_device_sdk_v0 迁移](docs/project/MIGRATION_FROM_ARGSDK_V0.md)
+
+## 硬件上下文
+
+当前实验室候选硬件是 bring-up 目标，不是 SDK 约束：
+
+- endpoint 上电调试：i.MX 8M Mini 开发板
+- 低功耗端侧外设：HM0360、GW1NZ-2、LR2021、nRF54L15、ICM-45686、T5838
+- SDC 上电调试：Jetson Orin Nano / Orin NX 类计算设备
+
+SDK 核心应当保持在协议、传输、视频、遥测和能力抽象之后，让这些硬件后续可以被开放生态里的替代方案替换。

@@ -1,0 +1,22 @@
+device:
+  id: endpoint-dev-001
+  role: endpoint
+  platform: generic-linux
+
+network:
+  bind_host: 0.0.0.0
+  control_port: 42001
+  peer_host: 127.0.0.1
+  peer_heartbeat_port: 42000
+
+video:
+  # 先使用 videotestsrc；平台 profile 后续可以替换编码器。
+  host: 127.0.0.1
+  port: 5000
+  width: 1280
+  height: 720
+  fps: 30
+  encoder: x264enc
+
+logging:
+  dir: ./logs

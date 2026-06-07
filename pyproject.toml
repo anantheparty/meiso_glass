@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meiso-glass"
+version = "0.0.1"
+description = "Platform-neutral SDK skeleton for AR glasses endpoint and SDC devices"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+meiso-endpoint = "meiso_glass.cli:main_endpoint"
+meiso-sdc = "meiso_glass.cli:main_sdc"
+meiso-send = "meiso_glass.cli:main_send"
+meiso-probe = "meiso_glass.cli:main_probe"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

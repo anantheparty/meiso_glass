@@ -1,0 +1,13 @@
+[Unit]
+Description=Meiso Glass SDC Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/meiso_glass
+ExecStart=/opt/meiso_glass/.venv/bin/meiso-sdc --config /opt/meiso_glass/configs/examples/sdc.generic.yaml
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

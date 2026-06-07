@@ -1,0 +1,17 @@
+device:
+  id: sdc-dev-001
+  role: sdc
+  platform: generic-linux
+
+network:
+  bind_host: 0.0.0.0
+  heartbeat_port: 42000
+  control_port: 42002
+  peer_host: 127.0.0.1
+
+video:
+  port: 5000
+  decoder: software
+
+logging:
+  dir: ./logs
