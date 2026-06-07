@@ -17,8 +17,11 @@ def test_sender_pipeline_uses_requested_host_port_and_encoder():
     assert "udpsink host=192.0.2.10 port=5001" in cmd
 
 
-def test_receiver_pipeline_can_select_named_decoder_profile():
-    cmd = h264_rtp_receiver_command(port=5002, decoder="nvidia")
+def test_receiver_pipeline_accepts_profile_supplied_decoder_pipeline():
+    cmd = h264_rtp_receiver_command(
+        port=5002,
+        decoder_pipeline="customhwdec ! customvideosink sync=false",
+    )
 
     assert "udpsrc port=5002" in cmd
-    assert "nvv4l2decoder" in cmd
+    assert "customhwdec ! customvideosink sync=false" in cmd

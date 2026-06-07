@@ -11,7 +11,7 @@ network:
 
 video:
   port: 5000
-  decoder: software
+  decoder: avdec_h264 ! videoconvert ! autovideosink sync=false
 
 logging:
   dir: ./logs

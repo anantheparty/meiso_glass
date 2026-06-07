@@ -11,7 +11,7 @@ network:
 
 video:
   port: 5000
-  decoder: nvidia
+  decoder: nvv4l2decoder ! nv3dsink sync=false
 
 logging:
   dir: ./logs

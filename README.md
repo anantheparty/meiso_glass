@@ -58,6 +58,10 @@ tests/                  聚焦 SDK 契约的测试
 ## 文档
 
 - [文档索引](docs/README.md)
+- [SDK 总纲](docs/bible/SDK_BIBLE.md)
+- [架构总纲](docs/bible/ARCHITECTURE_BIBLE.md)
+- [解耦总纲](docs/bible/DECOUPLING_BIBLE.md)
+- [测试总纲](docs/bible/TESTING_BIBLE.md)
 - [SDK 架构](docs/architecture/SDK_ARCHITECTURE.md)
 - [消息协议](docs/protocol/MESSAGE_PROTOCOL.md)
 - [遥测包格式](docs/protocol/TELEMETRY_PACKET_FORMAT.md)

@@ -5,6 +5,9 @@ import subprocess
 from dataclasses import dataclass
 
 
+SOFTWARE_H264_DECODER_PIPELINE = "avdec_h264 ! videoconvert ! autovideosink sync=false"
+
+
 @dataclass
 class GStreamerProcess:
     process: subprocess.Popen | None = None
@@ -36,9 +39,8 @@ def testsrc_h264_rtp_sender_command(
 ) -> str:
     """Return a portable test source H.264 RTP sender pipeline.
 
-    Platform profiles can replace the encoder with a BSP-specific hardware
-    element, for example v4l2h264enc, vpuenc_h264, imxvpuenc_h264, or an
-    NVIDIA encoder depending on the runtime.
+    Platform profiles can replace the encoder with an adapter-specific
+    pipeline element without changing the command builder contract.
     """
     if encoder == "x264enc":
         enc = "x264enc tune=zerolatency speed-preset=ultrafast bitrate=4000 key-int-max=30"
@@ -55,13 +57,8 @@ def testsrc_h264_rtp_sender_command(
     )
 
 
-def h264_rtp_receiver_command(port: int = 5000, decoder: str = "software") -> str:
-    if decoder == "nvidia":
-        dec = "nvv4l2decoder ! nv3dsink sync=false"
-    elif decoder == "software":
-        dec = "avdec_h264 ! videoconvert ! autovideosink sync=false"
-    else:
-        dec = decoder
+def h264_rtp_receiver_command(port: int = 5000, decoder_pipeline: str | None = None) -> str:
+    dec = decoder_pipeline or SOFTWARE_H264_DECODER_PIPELINE
     caps = 'application/x-rtp, media=(string)video, encoding-name=(string)H264, payload=(int)96'
     return (
         f"gst-launch-1.0 -v udpsrc port={port} caps=\"{caps}\" "

@@ -43,8 +43,5 @@ def collect_health() -> dict[str, Any]:
         "ip_addr": _run(["ip", "addr"], timeout=2.0),
         "video_devices": _run(["bash", "-lc", "ls -l /dev/video* 2>/dev/null || true"], timeout=2.0),
         "gst_version": _run(["bash", "-lc", "gst-launch-1.0 --version 2>/dev/null | head -3 || true"], timeout=2.0),
-        "platform_hints": {
-            "nvidia_l4t": read_text("/etc/nv_tegra_release"),
-        },
         "env": {"USER": os.environ.get("USER", "")},
     }

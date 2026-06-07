@@ -69,7 +69,12 @@ class SDKConfig:
 
     @property
     def video_decoder(self) -> str:
-        return str(self.raw.get("video", {}).get("decoder", "software"))
+        return str(
+            self.raw.get("video", {}).get(
+                "decoder",
+                "avdec_h264 ! videoconvert ! autovideosink sync=false",
+            )
+        )
 
     @property
     def log_dir(self) -> Path:
