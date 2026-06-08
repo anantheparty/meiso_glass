@@ -22,7 +22,7 @@ reference implementation 是为了证明 contract 可运行的一组实现。它
 
 ## 规则
 
-- reference implementation 可以出现在 adapter、script、platform profile、docs/platforms。
+- reference implementation 可以出现在 adapter、script、platform profile、docs/SDK/platforms。
 - core API 不得承诺某个 reference implementation 永久存在。
 - core tests 测抽象 contract，reference tests 测具体 pipeline。
 - 如果某个具体实现开始被多个平台共享，应先抽象为 port，再提升到 core。

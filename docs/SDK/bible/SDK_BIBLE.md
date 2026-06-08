@@ -28,7 +28,7 @@ SDK 核心不定义：
 ## 不可漂移规则
 
 - `src/meiso_glass` 不得出现参考平台 token，例如 `imx8mm`、`orin`、`jetson`、`tegra`、`nvv4l2`。
-- 具体硬件实现必须位于 adapter、reference implementation、platform profile 或 docs/reference 中。
+- 具体硬件实现必须位于 adapter、reference implementation、platform profile 或 docs/SDK/reference 中。
 - 每个硬件能力都必须有 mock 或 fake 实现，真实硬件不是开发和 CI 的前置条件。
 - public API 不得等同于 UDP client、GStreamer pipeline 或某个板卡 BSP。
 - 所有 wire payload、config key、CLI command、log field、metric name 必须使用英文 ASCII 标识。

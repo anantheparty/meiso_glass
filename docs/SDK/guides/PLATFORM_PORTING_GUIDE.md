@@ -41,8 +41,8 @@ logging:
 
 ## 4. 跑兼容性检查
 
-在宣称一个平台已支持之前，先使用 `docs/guides/COMPATIBILITY_CHECKLIST.md`。
+在宣称一个平台已支持之前，先使用 `docs/SDK/guides/COMPATIBILITY_CHECKLIST.md`。
 
 ## 5. 不要把参考平台代码写进核心
 
-参考平台说明放在 `docs/platforms/REFERENCE_PLATFORM_IMX8MM_ORIN.md` 或 adapter 模块里。核心协议、消息、遥测包和运行时 loop 必须保持平台中立。
+参考平台说明放在 `docs/SDK/platforms/REFERENCE_PLATFORM_IMX8MM_ORIN.md` 或 adapter 模块里。核心协议、消息、遥测包和运行时 loop 必须保持平台中立。
