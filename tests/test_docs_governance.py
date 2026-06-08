@@ -2,34 +2,17 @@ from pathlib import Path
 
 
 REQUIRED_DOCS = [
-    "docs/SDK/bible/SDK_BIBLE.md",
-    "docs/SDK/bible/ARCHITECTURE_BIBLE.md",
-    "docs/SDK/bible/DECOUPLING_BIBLE.md",
-    "docs/SDK/bible/TESTING_BIBLE.md",
-    "docs/SDK/bible/PROTOCOL_BIBLE.md",
-    "docs/SDK/bible/VERSIONING_BIBLE.md",
-    "docs/SDK/bible/AGENT_RUNTIME_BIBLE.md",
-    "docs/SDK/bible/ADAPTER_CONTRACT_BIBLE.md",
-    "docs/SDK/bible/CONFIG_PROFILE_BIBLE.md",
-    "docs/SDK/bible/CONTROL_PLANE_BIBLE.md",
-    "docs/SDK/bible/OBSERVABILITY_BIBLE.md",
-    "docs/SDK/bible/SUPPLY_CHAIN_BIBLE.md",
-    "docs/SDK/bible/REFERENCE_IMPLEMENTATION_BOUNDARY.md",
-    "docs/SDK/rules/LANGUAGE_AND_NAMING_RULES.md",
-    "docs/SDK/rules/CORE_BOUNDARY_RULES.md",
-    "docs/SDK/rules/TRANSPORT_PAYLOAD_RULES.md",
-    "docs/SDK/checklists/DECOUPLING_REVIEW_CHECKLIST.md",
-    "docs/SDK/checklists/PROTOCOL_CHANGE_CHECKLIST.md",
-    "docs/SDK/checklists/ADAPTER_ACCEPTANCE_CHECKLIST.md",
-    "docs/SDK/checklists/PLATFORM_ACCEPTANCE_CHECKLIST.md",
-    "docs/SDK/checklists/RELEASE_READINESS_CHECKLIST.md",
-    "docs/SDK/adr/0001-platform-neutral-core.md",
-    "docs/SDK/adr/0002-sdc-role-name.md",
-    "docs/SDK/adr/0003-udp-json-control-plane-v0.md",
-    "docs/SDK/adr/0004-adapter-backed-hardware.md",
-    "docs/SDK/adr/0005-chinese-docs-english-contracts.md",
-    "docs/SDK/research/REFERENCE_SOURCES.md",
+    "docs/SDK/bible/SDK_DESIGN_OVERVIEW.md",
+    "docs/SDK/bible/SDK_SUBSYSTEM_DESIGN.md",
+    "docs/SDK/bible/SDK_DEVELOPMENT_PLAN.md",
 ]
+
+ALLOWED_SDK_TOP_LEVEL = {"README.md", "bible"}
+ALLOWED_SDK_BIBLE_DOCS = {
+    "SDK_DESIGN_OVERVIEW.md",
+    "SDK_SUBSYSTEM_DESIGN.md",
+    "SDK_DEVELOPMENT_PLAN.md",
+}
 
 IGNORED_DIRS = {
     ".git",
@@ -55,6 +38,14 @@ def test_required_governance_docs_exist():
     missing = [path for path in REQUIRED_DOCS if not Path(path).is_file()]
 
     assert missing == []
+
+
+def test_sdk_docs_stay_consolidated():
+    sdk_entries = {path.name for path in Path("docs/SDK").iterdir()}
+    bible_docs = {path.name for path in Path("docs/SDK/bible").glob("*.md")}
+
+    assert sdk_entries == ALLOWED_SDK_TOP_LEVEL
+    assert bible_docs == ALLOWED_SDK_BIBLE_DOCS
 
 
 def test_repository_paths_use_english_names():

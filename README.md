@@ -48,7 +48,7 @@ src/meiso_glass/        SDK 包
 configs/examples/       平台中立示例配置
 configs/platforms/      板卡专用上电调试 profile
 scripts/                可移植的开发/探针/视频冒烟脚本
-docs/                   架构、协议、首次运行、日志说明
+docs/                   origin 原始文档与 SDK 三份核心设计文档
 systemd/                通用 service 模板
 tests/                  聚焦 SDK 契约的测试
 ```
@@ -59,22 +59,9 @@ tests/                  聚焦 SDK 契约的测试
 
 - [文档索引](docs/README.md)
 - [SDK 文档索引](docs/SDK/README.md)
-- [SDK 总纲](docs/SDK/bible/SDK_BIBLE.md)
-- [架构总纲](docs/SDK/bible/ARCHITECTURE_BIBLE.md)
-- [解耦总纲](docs/SDK/bible/DECOUPLING_BIBLE.md)
-- [测试总纲](docs/SDK/bible/TESTING_BIBLE.md)
-- [SDK 架构](docs/SDK/architecture/SDK_ARCHITECTURE.md)
-- [消息协议](docs/SDK/protocol/MESSAGE_PROTOCOL.md)
-- [遥测包格式](docs/SDK/protocol/TELEMETRY_PACKET_FORMAT.md)
-- [硬件 Adapter API](docs/SDK/adapters/HARDWARE_ADAPTER_API.md)
-- [Mock/模拟器指南](docs/SDK/adapters/MOCK_SIMULATOR_GUIDE.md)
-- [首次运行](docs/SDK/guides/FIRST_RUN.md)
-- [平台移植指南](docs/SDK/guides/PLATFORM_PORTING_GUIDE.md)
-- [兼容性检查清单](docs/SDK/guides/COMPATIBILITY_CHECKLIST.md)
-- [功耗基准指南](docs/SDK/benchmarks/POWER_BENCHMARK_GUIDE.md)
-- [功耗和延迟日志](docs/SDK/benchmarks/POWER_AND_LATENCY_LOGGING.md)
-- [参考平台：i.MX8MM + Orin](docs/SDK/platforms/REFERENCE_PLATFORM_IMX8MM_ORIN.md)
-- [从 arglasses_dual_device_sdk_v0 迁移](docs/SDK/project/MIGRATION_FROM_ARGSDK_V0.md)
+- [SDK 设计概览与核心设计图](docs/SDK/bible/SDK_DESIGN_OVERVIEW.md)
+- [SDK 子系统详细设计案](docs/SDK/bible/SDK_SUBSYSTEM_DESIGN.md)
+- [SDK 开发计划与当前进度](docs/SDK/bible/SDK_DEVELOPMENT_PLAN.md)
 
 ## 硬件上下文
 
