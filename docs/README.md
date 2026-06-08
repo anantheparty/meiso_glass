@@ -58,6 +58,7 @@
 
 - [参考平台：i.MX8MM + Orin](platforms/REFERENCE_PLATFORM_IMX8MM_ORIN.md)
 - [从 arglasses_dual_device_sdk_v0 迁移](project/MIGRATION_FROM_ARGSDK_V0.md)
+- [SDK 文档设计与维护评审](project/SDK_DOCUMENTATION_AND_MAINTENANCE_REVIEW.md)
 
 ## ADR 和调研来源
 
