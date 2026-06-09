@@ -48,7 +48,7 @@ src/meiso_glass/        SDK 包
 configs/examples/       平台中立示例配置
 configs/platforms/      板卡专用上电调试 profile
 scripts/                可移植的开发/探针/视频冒烟脚本
-docs/                   origin 原始文档与 SDK 三份核心设计文档
+docs/                   origin 原始文档、SDK 三份核心设计文档与真机验证计划
 systemd/                通用 service 模板
 tests/                  聚焦 SDK 契约的测试
 ```
@@ -62,6 +62,7 @@ tests/                  聚焦 SDK 契约的测试
 - [SDK 设计概览与核心设计图](docs/SDK/bible/SDK_DESIGN_OVERVIEW.md)
 - [SDK 子系统详细设计案](docs/SDK/bible/SDK_SUBSYSTEM_DESIGN.md)
 - [SDK 开发计划与当前进度](docs/SDK/bible/SDK_DEVELOPMENT_PLAN.md)
+- [真机验证计划](docs/validation/README.md)
 
 ## 硬件上下文
 
