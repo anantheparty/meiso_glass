@@ -1,33 +1,83 @@
-# SDK 开发计划与当前进度
+# Meiso Glass SDK Bible：开发计划与冻结路线
 
-## 当前阶段
+> 状态：Bible v0.4 XR-core 草案
+> 修订日期：2026-06-13
+> 当前阶段：SDK bible 结构冻结 -> core schema / presentation / power 代码化
 
-当前阶段是 SDK 结构设计阶段，不是使用指南阶段，也不是完整真机 bring-up 阶段。
+## 0. 当前判断
 
-本阶段目标：
+当前不是写使用指南的阶段，也不是完整真机 bring-up 阶段。当前最重要的是冻结一条足够小、足够硬、能解释 AR 眼镜特点的 SDK 主线：
 
-1. 把 SDK 的模块边界、大小资源模型、角色边界和 session 模型梳理清楚。
-2. 把功耗模型提前放进 capability、session、adapter 和 telemetry。
-3. 删除会导致漂移的过早文档。
-4. 保留最少的核心设计文档。
-5. 后续再按结构逐步改代码，而不是先堆 guide。
+```text
+SystemProfile -> Capability -> Session -> Space/ViewSet/Layer -> PowerBudget -> Adapter -> Evidence
+```
 
-## 已完成
+本版比 v0.3 更简化：
 
-- 仓库已有最小 Python package。
-- 已有 endpoint、SDC、host 三类角色雏形。
-- 已有 UDP JSON message skeleton。
-- 已有二进制 telemetry packet header 雏形。
-- 已有 mock camera、fake IMU、fake power、fake radio 等模拟对象。
-- 已有本机 smoke test 级别测试。
-- 原始文档已放入 `docs/origin/`，并规定 agent 不得私自修改。
-- SDK 文档已收敛到 `docs/SDK/bible/` 下三个核心文档。
-- 本轮已把 Mermaid 图改成短图，把详细设计迁移到表格和字段定义。
-- 本轮已把 adapter 功耗等级、多维功耗、采集/处理/传输信息量拆分写入设计。
+- 保留 OpenXR/WebXR 类 XR SDK 的核心对象：system、session、space、view、layer、frame timing、action slot、extension slot。
+- 删除不适合当前阶段的完整 loader、graphics binding、render engine、full action map、anchors/hit-test/mesh public API。
+- 把功耗从七维大表压成 `PowerBudget + PowerLevel + PowerCostPoint + MeasuredPowerPoint`。
+- 把单眼/双眼/3D 的问题统一放进 `ViewSet`。
+- 把未来 depth/stereo/IR/event camera 放进 `SensorSlot` / `SpatialCapability`，不提前写 adapter。
 
-## 本次文档收敛结果
+## 1. 已完成状态
 
-保留：
+已存在：
+
+- 最小 Python package。
+- endpoint、SDC、host 三类角色雏形。
+- UDP JSON message skeleton。
+- 二进制 telemetry packet header 雏形。
+- mock camera、fake IMU、fake power、fake radio 等模拟对象。
+- 本机 smoke test 级别测试。
+- 原始文档放入 `docs/origin/`，不应被 agent 私自修改。
+- SDK bible 收敛到三份核心文档。
+
+已进入 bible：
+
+- role / core / runtime / adapters / profile 分层。
+- capability/session/power/evidence 主线。
+- ResourceTier 大小系统。
+- PowerLevel 和 measurement source。
+- Camera capture/process/egress/information 分离。
+- Presentation/ViewSet/Layer/FrameTiming 初版 contract。
+- Future depth/spatial sensor slot。
+- Telemetry 和 adapter status 方向。
+
+尚未进入代码：
+
+- SystemProfile / Capability / Session schema。
+- Space / ViewSet / PresentationLayer schema。
+- PowerBudget / PowerProfile / PowerCostPoint schema。
+- Adapter base contract。
+- Runtime admission。
+- Evidence recorder。
+- Contract test suite。
+
+## 2. Phase gates
+
+### P0：Bible v0.4 冻结
+
+目标：三份文档能稳定指导代码，不再继续发散。
+
+任务：
+
+- 冻结 10 个核心对象：`SystemProfile`、`Capability`、`ResourceTier`、`Session`、`Space`、`ViewSet`、`PresentationLayer`、`PowerBudget`、`PowerProfile`、`Evidence`。
+- 明确 Meiso 不是完整 OpenXR runtime。
+- 明确 SDK 管 presentation contract，不管 render engine。
+- 明确 future depth/stereo/anchor/hit-test 只作为 declared slot。
+- 明确 power 是 admission 约束，不是 telemetry 附属字段。
+- 删除文档中对未落地 adapter 的过细展开。
+
+验收：
+
+- 新功能能落入 core/space/presentation/power/adapters/runtime/control/telemetry/evidence/profile 之一。
+- 文档能解释初版单眼和未来双眼/3D 不冲突。
+- 文档能解释 future depth 为什么不写 DepthCameraAdapter。
+- 文档能解释 power level 为什么不等于 mW。
+- 三份文档职责互不重叠。
+
+产物：
 
 ```text
 docs/SDK/bible/SDK_DESIGN_OVERVIEW.md
@@ -35,280 +85,381 @@ docs/SDK/bible/SDK_SUBSYSTEM_DESIGN.md
 docs/SDK/bible/SDK_DEVELOPMENT_PLAN.md
 ```
 
-不单独维护：
+### P1：Core schema 代码化
 
-- 独立 guide。
-- 独立 ADR。
-- 独立 checklist。
-- 独立 protocol 细则。
-- 独立 platform 文档。
-- 独立 project review。
-- 独立 research/source 文档。
-
-需要保留的信息必须先合并进三个核心文档。
-
-## 当前设计变化
-
-这次更新后的关键变化：
-
-- Mermaid 只保留短图，不再用长图表达全部系统。
-- `power_mode` 不再是唯一功耗抽象。
-- 每个 adapter 都需要 `power_profile`。
-- `power_level_u8` 使用 `0..255`，但只作为策略等级，不直接等于 mW。
-- 多维功耗字段进入模型：state、duty、throughput、quality、latency、thermal、confidence。
-- 摄像头设计明确拆分 `capture_cost`、`process_cost`、`egress_cost`、`information_level`。
-- telemetry 增加 `adapter_power_state` 方向。
-- profile 需要记录 measurement source 和 unknowns。
-
-## 近期开发路线
-
-### P0：结构冻结
-
-目标：确认 SDK 一等概念。
+目标：先把 public contract 写成数据结构和 schema。
 
 任务：
 
-- 确认 `role` 模型。
-- 确认 resource tier 模型。
-- 确认 capability 模型。
-- 确认 session 模型。
-- 确认 power profile 模型。
-- 确认 control/telemetry/media/power 四个平面。
-- 确认 adapter 和 runtime 的边界。
+- 建立 `core/`。
+- 定义 `Metadata`、`SemanticPath`、`Condition`、`StructuredError`。
+- 定义 `SystemProfile`、`Capability`、`ResourceTier`、`Session`。
+- 所有长生命周期对象拆 `spec/status/evidence`。
+- 增加 schema validation。
+- 增加 serialization roundtrip tests。
+- 增加 API surface snapshot 或等价测试。
 
 验收：
 
-- 三份核心文档能够解释 SDK 为什么这样分层。
-- 新增功能能明确落入某个模块，不需要新增散乱文档。
-- Mermaid 图不再承载详细清单。
-
-### P1：Power model 代码化
-
-目标：先把功耗模型写成 SDK 数据结构，而不是先接硬件。
-
-任务：
-
-- 定义 `PowerLevel`、`PowerDimensions`、`PowerProfile`、`MeasuredPowerPoint`。
-- 定义 `power_level_u8` 的分段常量。
-- 定义 `confidence_level_u8` 和 `measurement_source`。
-- 在 capability 中加入 `power_profile`。
-- 在 session 中加入 `power_budget` 和 `information_budget`。
-- 在 mock adapter 中实现可配置 power profile。
-
-验收：
-
-- mock camera 可以声明不同 level 的 resolution/fps/output。
-- mock radio 可以声明 airtime/payload budget。
-- mock display 可以声明 brightness/refresh 等级。
-- session 可以因为 power budget 不足被拒绝或降级。
-
-### P2：领域模型代码化
-
-目标：把结构写进代码，而不是先接硬件。
-
-任务：
-
-- 新增或整理 `core` 模块。
-- 定义 `Capability`、`ResourceTier`、`Session`、`SessionState`。
-- 定义结构化错误。
-- 定义 config schema 的最小形状。
-- 保留现有 UDP 和 mock，但不要让它们定义 SDK 边界。
-
-验收：
-
-- mock endpoint 和 mock SDC 可以基于 session/capability/power 模型运行。
-- 测试覆盖错误和状态迁移，不只覆盖 happy path。
-
-### P3：Adapter contract
-
-目标：使 adapter 不再是自由字典。
-
-任务：
-
-- 为 camera、audio、display、radio、power、M4、FPGA、storage 定义最小 contract。
-- 每类 adapter 都必须暴露 `power_profile`。
-- 每类 adapter 都必须返回 structured status 和 structured error。
-- 为每类 adapter 加 mock contract test。
-- 明确 `available`、`running`、`blocked`、`degraded` 的语义。
-
-验收：
-
-- 新 adapter 必须声明 capability。
-- 新 adapter 必须声明 supported power levels。
-- 新 adapter 必须能报告 current level 和 measurement confidence。
-- mock 与 real adapter 使用同一套测试。
-
-### P4：Control plane 状态机
-
-目标：把命令从“字符串触发函数”升级为“状态机驱动 session”。
-
-任务：
-
-- 固定 envelope 和 command payload 边界。
-- 增加 `start_session`、`stop_session`、`query_capability`、`set_policy`。
-- 加入 `session_id`、幂等键和结构化 ACK。
-- 错误返回稳定 `code`。
-- ACK 中返回 selected capability、selected power level、degradation reason。
-
-验收：
-
-- 重复 `start_session` 不会重复启动同一资源。
-- malformed message 不会打死 agent。
-- unknown command 返回稳定错误。
-- power budget 不足时返回可解释的拒绝或降级。
-
-### P5：大小资源策略
-
-目标：让大小核、大小链路、大小摄像头、大小麦克风进入 SDK 模型。
-
-任务：
-
-- 在 capability 中加入 `resource_tier`。
-- 在 session 中声明需要的 resource tier。
-- 在 power policy 中定义 mode 到 tier/level 的映射。
-- 在 mock 中模拟从小资源唤醒大资源。
-- 定义 `information_level_u8` 和 `egress_level_u8` 的关系。
-
-验收：
-
-- 可以表达“低功耗视觉事件触发 rich video session”。
-- 可以表达“唤醒麦触发命令唤醒，但不启动全阵列麦”。
-- 可以表达“LR/BLE 控制链路与高速 Wi-Fi 媒体链路不同”。
-- 可以表达“摄像头高采集但只传 ROI tuple”。
-
-### P6：Measurement path
-
-目标：让功耗等级从纯设计变成可验证数据。
-
-任务：
-
-- 定义 `MeasuredPowerPoint` fixture。
-- 定义 rail measurement schema。
-- 支持 OS source：Linux `hwmon`、Linux `powercap`、Android PowerStats 类数据。
-- 支持 external fixture source。
-- session 结束时记录 power summary。
-
-验收：
-
-- 每个 mock session 能输出 fake measurement。
-- 真机没有 rail 数据时，可以记录 `declared_only` 或 `datasheet_estimate`。
-- 有 rail 数据时，可以记录 `mw_avg`、`mw_peak`、`uj_per_event`、`uj_per_frame`。
-- confidence 低的数据不会被 policy 当成精确预算。
-
-### P7：Reference path
-
-目标：在 SDK 结构清楚后，再考虑真实硬件落地。
-
-任务：
-
-- Orin 作为 SDC reference path。
-- MX8MM 作为 endpoint reference path。
-- 决定 MX8MM endpoint 是 Android proxy、Android native，还是 embedded Linux。
-- 建立 direct Ethernet 的最小测试路径。
-- 再接视频、功耗、M4、低功耗传感器。
-
-验收：
-
-- reference path 只使用 public SDK contract。
-- 真机发现的问题能反向修正 SDK 模型。
-- 本地敏感配置不进入 remote 仓库。
-
-## 当前明确不做
-
-- 不维护独立使用指南。
-- 不维护后期移植文档。
-- 不维护大量 checklist。
-- 不为还没稳定的设计单独写 ADR。
-- 不把真机 bring-up 脚本放进 core。
-- 不把本地实验室敏感信息放进 remote 仓库。
-- 不把任何一个 OS 的 power API 当作 SDK 唯一模型。
-- 不把 `power_level_u8` 伪装成真实 mW。
-
-## 主要风险
-
-### 风险 1：平台中立变成空泛抽象
-
-应对：
-
-- 所有抽象都必须能解释 i.MX8MM + Orin reference path。
-- 但 reference path 不得反向硬编码进 core。
-
-### 风险 2：大小系统继续缺席
-
-应对：
-
-- resource tier 必须进入 capability、session 和 power policy。
-- 任何涉及 camera、audio、radio、compute 的设计都必须说明自己属于大资源、小资源，还是跨层升级路径。
-
-### 风险 3：功耗模型太粗
-
-应对：
-
-- 每个 adapter 都要有 `power_profile`。
-- 每个 profile 都区分 level、dimension、measurement source 和 confidence。
-- 摄像头、radio、display 等不能只用一个字符串 mode 表达。
-
-### 风险 4：功耗模型太细导致实现拖慢
-
-应对：
-
-- V0 只要求少量 supported levels。
-- 没测量数据可以先用 `declared_only`。
-- 8-bit 分段先作为策略骨架，不要求所有 adapter 支持所有档位。
-
-### 风险 5：文档再次膨胀
-
-应对：
-
-- 新 SDK 文档默认不允许创建。
-- 先改三份核心文档。
-- 只有当内容稳定、重复引用、且确实无法继续放在三份文档中时，才拆分。
-
-### 风险 6：实现绕过设计
-
-应对：
-
-- 先把 session/capability/resource tier/power profile 写进代码。
-- 再迁移当前 UDP/GStreamer/mock。
-- 测试必须覆盖状态机、错误、降级和 power budget，而不仅是对象 roundtrip。
-
-## 未决问题清单
-
-这些问题暂时不强行定稿：
-
-1. `power_level_u8` 是否应该跨 adapter family 可比。
-2. 是否保留 256 档，还是 V0 先公开 128 档、保留高 bit。
-3. `information_level_u8` 是否应当进入所有 media session，还是先只在 camera/radio 上定义。
-4. Camera 的 `capture_level`、`process_level`、`egress_level` 是否需要分别进入 wire telemetry。
-5. 没有 rail 级测量时，如何从整机功耗差分估算 adapter 功耗。
-6. M4、FPGA、A53 三者之间的低功耗视觉边界需要真实测量，不应靠直觉决定。
-7. Display 的功耗模型是否需要按显示技术拆分。
-8. Radio 的低功耗模型是否能抽象到 BLE/LR/Wi-Fi 共用字段，同时保留各协议特性。
-9. PowerAdapter 的采样开销如何计入 session budget。
-10. confidence 低的数据是否允许进入自动 policy，还是只允许人工分析。
-
-## 下一步建议
-
-1. 先确认三份文档中的 power model 方向是否符合项目判断。
-2. 如果方向确认，下一步先改代码结构：建立 `core/power` 的最小模型。
-3. 再把 `Capability`、`Session`、`AdapterStatus` 串起来。
-4. 然后补 mock camera/radio/display/power 的 power profile contract tests。
-5. 最后再把 Orin/MX8MM reference path 接进 adapter 和 runtime。
-
-## 当前状态快照
+- 能表达 endpoint/sdc/host 三类 role。
+- 能表达 lowfi camera、rich camera、eye hint、display mono、radio telemetry、power probe capability。
+- `declared` capability 不能被当成可运行能力。
+- 缺失关键字段会失败。
+- session 非法状态迁移会失败。
+
+产物：
 
 ```text
-文档结构：已收敛
-Mermaid：已改为短图
-SDK 总体结构：草案
-大小资源模型：已进入设计文档，未进入代码
-power profile：已进入设计文档，未进入代码
-8-bit power level：已进入设计文档，未进入代码
-session 模型：已进入设计文档，未进入代码
-adapter contract：已有旧雏形，需要重做
-control plane：已有旧雏形，需要状态机化
-telemetry：已有 header 雏形，需要 payload family 和 power state payload
-media：已有 smoke test 雏形，需要 session 化
-measurement：只有设计，需要 schema 和 fake fixture
-reference hardware：准备阶段，不作为当前文档重点
+core/path.py
+core/metadata.py
+core/condition.py
+core/error.py
+core/profile.py
+core/capability.py
+core/resource_tier.py
+core/session.py
+tests/core/test_schema_roundtrip.py
+tests/core/test_session_state.py
+tests/core/test_declared_capability.py
 ```
+
+### P2：Space / Presentation schema 代码化
+
+目标：把 AR 眼镜最关键的显示和坐标 contract 放进代码。
+
+任务：
+
+- 建立 `space/` 和 `presentation/`。
+- 定义 `SpaceRef`、`Pose`、`SpaceRelation`。
+- 定义 `SensorSlot`、`SpatialCapability`。
+- 定义 `ViewSet`、`ViewSlot`。
+- 定义 `PresentationSurface`、`PresentationLayer`、`PresentationSessionSpec`。
+- 定义 `FrameTiming`、`PresentationFrameStats`。
+- 写 mono profile fixture。
+- 写 future stereo/depth declared slot fixture。
+
+验收：
+
+- 初版单眼 display 表达为 `ViewSet.topology=mono`。
+- 未来双眼/3D 可表达为 `ViewSet.topology=stereo|multiview|three_d`，不改 Session 模型。
+- Future depth slot 可以 declared，但 admission 不可使用。
+- PresentationLayer 不包含 shader/material/scene graph。
+- FrameStats 可以表达 drop、late、refresh degrade。
+
+产物：
+
+```text
+space/space.py
+space/pose.py
+space/relation.py
+space/sensor_slot.py
+space/spatial_capability.py
+presentation/view.py
+presentation/surface.py
+presentation/layer.py
+presentation/session_spec.py
+presentation/frame_timing.py
+tests/presentation/test_viewset.py
+tests/presentation/test_declared_future_slots.py
+```
+
+### P3：Power model 代码化
+
+目标：把功耗变成 admission 可用的数据结构。
+
+任务：
+
+- 建立 `power/`。
+- 定义 `PowerBudget`、`PowerLevel`、`PowerProfile`、`PowerCostPoint`、`PowerTransition`、`MeasuredPowerPoint`。
+- 定义 measurement source 和 confidence。
+- 写 level band 常量。
+- 在 Capability 中接入 `power_profile_ref`。
+- 在 Session 中接入 `PowerBudget`。
+- 写 budget check helper。
+
+验收：
+
+- `power_level_u8` 不等于 mW。
+- supported levels 不要求 256 档。
+- 没测量数据可用 `declared_only`，但 confidence 低。
+- budget 不足会 reject 或 degrade。
+- PowerAdapter 自身采样成本可表达。
+- Presentation session 可以因为 brightness/refresh/layer/view 触发 power degradation。
+
+产物：
+
+```text
+power/level.py
+power/budget.py
+power/profile.py
+power/cost_point.py
+power/transition.py
+power/measurement.py
+power/check.py
+tests/power/test_level_band.py
+tests/power/test_budget_check.py
+tests/power/test_measurement_confidence.py
+```
+
+### P4：Adapter base contract
+
+目标：让 adapter 不再是自由字典。
+
+任务：
+
+- 建立 `adapters/base.py`。
+- 定义 `AdapterStatus`、`AdapterProbeResult`、`ValidationResult`。
+- 定义 family contracts：camera、display、presentation_port、radio、sensor、compute_bridge、power、storage。
+- 迁移现有 mock camera/fake IMU/fake power/fake radio。
+- 写 shared adapter contract tests。
+- 明确 V0 不写 `RenderAdapter`、不写 `DepthCameraAdapter`。
+
+验收：
+
+- 每个 adapter 必须声明 capability。
+- 每个 adapter 必须声明 power profile。
+- 每个 adapter 必须返回 structured status/error。
+- mock 和 real adapter 使用同一套测试。
+- DisplayAdapter 不暴露 layer/scene graph。
+- PresentationPort 只消费 PresentationSessionSpec。
+
+产物：
+
+```text
+adapters/base.py
+adapters/status.py
+adapters/camera.py
+adapters/display.py
+adapters/presentation_port.py
+adapters/radio.py
+adapters/sensor.py
+adapters/compute_bridge.py
+adapters/power.py
+adapters/storage.py
+tests/adapters/test_contract.py
+```
+
+### P5：Runtime admission 和 session manager
+
+目标：把命令从“字符串触发函数”升级为 admission + 状态机。
+
+任务：
+
+- 建立 `runtime/admission.py`。
+- 实现 capability filtering。
+- 实现 validation_state gate。
+- 实现 dependency/conflict 检查。
+- 实现 power/link/thermal/display/presentation budget 检查。
+- 实现 degradation selection。
+- 实现 session state machine。
+- 支持 idempotency key。
+- 输出 admission trace。
+
+验收：
+
+- 重复 start 不重复启动资源。
+- unknown capability 返回稳定错误。
+- `declared` future slot 不会被选中。
+- power budget 不足返回 reject/degrade。
+- presentation budget 不足能降刷新、降 viewport、关 layer 或拒绝。
+- session stop 后有 evidence。
+
+产物：
+
+```text
+runtime/admission.py
+runtime/session_manager.py
+runtime/degradation.py
+runtime/policy.py
+tests/runtime/test_admission.py
+tests/runtime/test_idempotency.py
+tests/runtime/test_presentation_degradation.py
+```
+
+### P6：Control plane 固化
+
+目标：让 endpoint/SDC/host 通过稳定 envelope 协作。
+
+任务：
+
+- 固定 `ControlEnvelope`。
+- 固定 command payload。
+- 固定 ACK/error 格式。
+- 接入 session manager。
+- 保留现有 UDP JSON，但不让 UDP 定义 public contract。
+- 增加 malformed message tests。
+
+验收：
+
+- `query_system_profile`、`query_capabilities`、`propose_session`、`start_session`、`stop_session` 可跑通 mock。
+- malformed message 不打死 runtime。
+- 错误码稳定。
+- ACK 包含 selected plan / idempotency hit / warning。
+
+产物：
+
+```text
+control/envelope.py
+control/commands.py
+control/ack.py
+control/errors.py
+tests/control/test_envelope.py
+tests/control/test_malformed.py
+```
+
+### P7：Telemetry / Evidence path
+
+目标：让 session 决策可回放。
+
+任务：
+
+- 定义 telemetry payload family。
+- 定义 binary header 与 JSON debug event 对照。
+- 定义 `SessionEvidence`。
+- 定义 evidence recorder。
+- 增加 replay reader。
+- 接入 power summary、presentation frame stats、adapter status。
+
+验收：
+
+- 每个 session stop 后有 evidence。
+- 可以看到 admission trace。
+- 可以看到 frame stats。
+- 可以看到 power confidence/source。
+- 可以从 evidence 解释 reject/degrade。
+
+产物：
+
+```text
+telemetry/payloads.py
+telemetry/header.py
+telemetry/replay.py
+evidence/session_evidence.py
+evidence/recorder.py
+tests/evidence/test_session_evidence.py
+```
+
+### P8：Simulation / conformance
+
+目标：在真机前让 contract 先稳定。
+
+任务：
+
+- Fake endpoint 支持 lowfi/rich/display/power/radio capability。
+- Fake SDC 支持 proposal/admission/start/stop。
+- Fake presentation clock 支持 frame drop/late/degrade。
+- Fake power measurement 支持 confidence/source。
+- 增加 conformance fixtures。
+
+验收：
+
+- 本机能跑完整 session flow。
+- Mock display presentation 可模拟 mono HUD。
+- Mock future depth slot 会被拒绝 admission。
+- Mock power budget 不足会降级。
+- 测试覆盖失败路径。
+
+产物：
+
+```text
+simulation/fake_endpoint.py
+simulation/fake_sdc.py
+simulation/fake_presentation.py
+simulation/fake_power.py
+tests/conformance/test_v0_flow.py
+```
+
+### P9：Reference path 再接真机
+
+目标：在 contract 稳定后接 i.MX8MM / Orin reference path。
+
+任务：
+
+- MX8MM endpoint profile fixture。
+- Orin SDC profile fixture。
+- direct Ethernet / Wi-Fi path 最小连接。
+- rich video path 作为 media session，不污染 core。
+- display DSI path 作为 DisplayAdapter/PresentationPort，不污染 render engine。
+- lowfi HM0360/GW1NZ/LR2021 path 作为 camera/radio/compute bridge adapters。
+- power rail data 进入 MeasuredPowerPoint。
+
+验收：
+
+- 真机路径只使用 public SDK contract。
+- 真机发现的问题反向修正 schema，而不是写旁路脚本。
+- 本地敏感配置不进 remote。
+- 所有硬件路径都有 validation_state。
+
+## 3. 当前明确不做
+
+- 不做使用指南。
+- 不做完整 OpenXR runtime。
+- 不做 OpenXR bridge。
+- 不做 RenderAdapter。
+- 不做 DepthCameraAdapter。
+- 不做 anchors/hit-test/mesh public API。
+- 不做 shader/material/scene graph。
+- 不做完整 controller action map。
+- 不为每种未来传感器新建 adapter。
+- 不把 hardware bring-up 脚本放进 core。
+- 不把 `power_level_u8` 当成 mW。
+
+## 4. 风险和应对
+
+### 风险 1：借鉴 OpenXR 后变成过大 runtime
+
+应对：只借对象边界，不借 loader/graphics binding/full action map。P0 明确 Meiso SDK 是 device/session/power contract layer。
+
+### 风险 2：presentation 继续被 DisplayAdapter 吃掉
+
+应对：DisplayAdapter 只管 panel/link/power；ViewSet/Layer/FrameTiming 进入 presentation 模块。
+
+### 风险 3：未来 depth/stereo 提前污染 V0
+
+应对：future capability 只能 declared，不可 admission；不得写 DepthCameraAdapter。
+
+### 风险 4：power model 太细拖慢代码
+
+应对：V0 只要求 `PowerBudget + PowerLevel + PowerCostPoint`，family detail 放 settings。
+
+### 风险 5：power model 太粗不能指导 AR 眼镜
+
+应对：admission 必须看 power/link/thermal/display/presentation；session evidence 必须记录 source/confidence。
+
+### 风险 6：Profile 变成 IP 配置文件
+
+应对：Profile 必须声明 capability、adapter binding、validation_state、measurement_sources、unknowns。
+
+### 风险 7：实现绕过设计
+
+应对：contract tests 先于真机 adapter；mock 和 real 共用测试。
+
+## 5. 未决问题
+
+这些问题暂不阻塞 v0.4：
+
+1. `PowerLevel` 跨 adapter family 是否需要更强可比性。
+2. PresentationSurface 是否需要真正 swapchain 语义，还是 V0 用 stream/surface 足够。
+3. `SpaceRelation` 是否需要 covariance；V0 可以先只用 confidence。
+4. Eye hint 输出是否统一成 `SpatialCapability(gaze)`，还是保留 camera tuple 到 SDC 融合。
+5. Mono display 的 `eye` 字段初版写 `none` 还是由 product profile 指定 left/right。
+6. Future depth 的 output form 是否先只定义 depth_map/confidence_map，还是预留 mesh/plane。
+7. PowerAdapter 的采样功耗如何计入长期 sentinel mode。
+8. Display/presentation 的真实功耗是否需要按 panel 技术拆 profile。
+9. LR2021/BLE/Wi-Fi 的 link profile 是否需要统一 retry/airtime schema。
+10. OpenXR bridge 如果未来需要，是由 SDC 侧实现，还是作为 host/debug 工具实现。
+
+## 6. 最近下一步
+
+最推荐的代码顺序：
+
+1. 写 `core/metadata.py`、`core/path.py`、`core/error.py`、`core/condition.py`。
+2. 写 `core/capability.py`、`core/session.py`、`core/profile.py`。
+3. 写 `space/` 和 `presentation/` 的 schema，不接真显示。
+4. 写 `power/` 的 schema 和 budget check。
+5. 迁移 mock adapter 到 base contract。
+6. 写 runtime admission。
+7. 再接现有 UDP JSON。
+8. 最后接真机 reference path。
+
+判断标准：**每一步都必须增加 contract test，而不是只增加一个能跑的 demo。**

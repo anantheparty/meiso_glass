@@ -41,7 +41,7 @@ def test_required_governance_docs_exist():
 
 
 def test_sdk_docs_stay_consolidated():
-    sdk_entries = {path.name for path in Path("docs/SDK").iterdir()}
+    sdk_entries = {path.name for path in Path("docs/SDK").iterdir() if not path.name.startswith(".")}
     bible_docs = {path.name for path in Path("docs/SDK/bible").glob("*.md")}
 
     assert sdk_entries == ALLOWED_SDK_TOP_LEVEL

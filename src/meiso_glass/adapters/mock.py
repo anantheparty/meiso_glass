@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .interfaces import AdapterStatus, StreamConfig
+from ..power import MeasurementSource, PowerCostPoint, PowerProfile
 
 
 @dataclass
@@ -19,6 +20,43 @@ class MockCameraAdapter:
     def list_formats(self, device_id: str | None = None) -> list[dict[str, Any]]:
         return [{"format": "RGB", "width": 1280, "height": 720, "fps": 30}]
 
+    def get_power_profile(self) -> PowerProfile:
+        return PowerProfile(
+            profile_id=f"/power/{self.name}",
+            adapter_id=self.name,
+            family="camera",
+            supported_levels=[0, 32, 64, 128],
+            default_level=0,
+            cost_points=[
+                PowerCostPoint(level=0, adapter_state="off", confidence_level_u8=255),
+                PowerCostPoint(
+                    level=32,
+                    adapter_state="active",
+                    settings={"output_form": "event"},
+                    expected_mw=2.0,
+                    measurement_source=MeasurementSource.DECLARED_ONLY,
+                    confidence_level_u8=32,
+                ),
+                PowerCostPoint(
+                    level=64,
+                    adapter_state="active",
+                    settings={"output_form": "tile"},
+                    expected_mw=8.0,
+                    measurement_source=MeasurementSource.DECLARED_ONLY,
+                    confidence_level_u8=32,
+                ),
+                PowerCostPoint(
+                    level=128,
+                    adapter_state="active",
+                    settings={"output_form": "compressed_stream"},
+                    expected_mw=80.0,
+                    measurement_source=MeasurementSource.DECLARED_ONLY,
+                    confidence_level_u8=32,
+                ),
+            ],
+            unknowns=["mock values are not physical measurements"],
+        )
+
     def start_stream(self, config: StreamConfig) -> AdapterStatus:
         self.running = True
         self.last_config = config
@@ -29,7 +67,16 @@ class MockCameraAdapter:
         return self.get_status()
 
     def get_status(self) -> AdapterStatus:
-        return AdapterStatus(self.name, available=True, running=self.running, details={"config": self.last_config})
+        level = 128 if self.running else 0
+        profile = self.get_power_profile()
+        return AdapterStatus(
+            self.name,
+            available=True,
+            running=self.running,
+            current_level_u8=level,
+            power_profile_ref=profile.profile_id,
+            details={"config": self.last_config},
+        )
 
 
 @dataclass
@@ -51,8 +98,30 @@ class FakeIMU:
             "gyro_rps": [0.0, 0.0, 0.0],
         }
 
+    def get_power_profile(self) -> PowerProfile:
+        return PowerProfile(
+            profile_id=f"/power/{self.name}",
+            adapter_id=self.name,
+            family="sensor",
+            supported_levels=[0, 32, 64],
+            default_level=32,
+            cost_points=[
+                PowerCostPoint(level=0, adapter_state="off", confidence_level_u8=255),
+                PowerCostPoint(level=32, adapter_state="active", expected_mw=1.0, confidence_level_u8=32),
+                PowerCostPoint(level=64, adapter_state="active", expected_mw=4.0, confidence_level_u8=32),
+            ],
+            unknowns=["mock values are not physical measurements"],
+        )
+
     def get_status(self) -> AdapterStatus:
-        return AdapterStatus(self.name, available=True, details={"seq": self.seq})
+        profile = self.get_power_profile()
+        return AdapterStatus(
+            self.name,
+            available=True,
+            current_level_u8=32,
+            power_profile_ref=profile.profile_id,
+            details={"seq": self.seq},
+        )
 
 
 @dataclass
@@ -67,12 +136,35 @@ class FakePowerMonitor:
             "rails_mw": {"endpoint": 250.0, "sensors": 12.0, "radio": 0.5},
         }
 
+    def get_power_profile(self) -> PowerProfile:
+        return PowerProfile(
+            profile_id=f"/power/{self.name}",
+            adapter_id=self.name,
+            family="power",
+            supported_levels=[0, 16, 64],
+            default_level=16,
+            cost_points=[
+                PowerCostPoint(level=0, adapter_state="off", confidence_level_u8=255),
+                PowerCostPoint(level=16, adapter_state="active", settings={"sampling": "coarse"}, expected_mw=0.1),
+                PowerCostPoint(level=64, adapter_state="active", settings={"sampling": "session"}, expected_mw=1.0),
+            ],
+            unknowns=["monitor sampling cost is estimated"],
+        )
+
     def set_mode(self, mode: str) -> AdapterStatus:
         self.mode = mode
         return self.get_status()
 
     def get_status(self) -> AdapterStatus:
-        return AdapterStatus(self.name, available=True, running=True, details={"mode": self.mode})
+        profile = self.get_power_profile()
+        return AdapterStatus(
+            self.name,
+            available=True,
+            running=True,
+            current_level_u8=16,
+            power_profile_ref=profile.profile_id,
+            details={"mode": self.mode},
+        )
 
 
 @dataclass
@@ -114,5 +206,29 @@ class FakeRadioLink:
             return None
         return self.tx_queue.popleft()
 
+    def get_power_profile(self) -> PowerProfile:
+        return PowerProfile(
+            profile_id=f"/power/{self.name}",
+            adapter_id=self.name,
+            family="radio",
+            supported_levels=[0, 32, 64, 96],
+            default_level=32,
+            cost_points=[
+                PowerCostPoint(level=0, adapter_state="off", confidence_level_u8=255),
+                PowerCostPoint(level=32, adapter_state="active", settings={"link_role": "wake_listen"}, expected_mw=0.2),
+                PowerCostPoint(level=64, adapter_state="active", settings={"link_role": "control"}, expected_mw=1.5),
+                PowerCostPoint(level=96, adapter_state="active", settings={"link_role": "telemetry_burst"}, expected_mw=8.0),
+            ],
+            unknowns=["airtime model is not calibrated"],
+        )
+
     def get_status(self) -> AdapterStatus:
-        return AdapterStatus(self.name, available=True, running=True, details={"queued": len(self.tx_queue)})
+        profile = self.get_power_profile()
+        return AdapterStatus(
+            self.name,
+            available=True,
+            running=True,
+            current_level_u8=64 if self.tx_queue else 32,
+            power_profile_ref=profile.profile_id,
+            details={"queued": len(self.tx_queue)},
+        )

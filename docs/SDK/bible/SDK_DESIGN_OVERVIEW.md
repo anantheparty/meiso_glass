@@ -1,184 +1,559 @@
-# SDK 设计概览与核心设计图
+# Meiso Glass SDK Bible：设计总纲
 
-## 当前定位
+> 状态：Bible v0.4 XR-core 草案
+> 修订日期：2026-06-13
+> 适用范围：SDK 抽象、XR/AR presentation contract、空间/显示/传感扩展槽、功耗 admission、endpoint/SDC/host 协作
+> 不适用范围：完整 OpenXR runtime、游戏引擎、shader/material、板级飞线指南、BSP 移植手册、最终用户教程
 
-Meiso Glass SDK 目前仍处于结构设计阶段。这个阶段最重要的不是把某一条真机链路写死，而是先定义清楚 SDK 如何表达硬件能力、会话、功耗和跨设备协作。
+## 0. 本版一句话结论
 
-SDK 面向三类运行角色：
+**Meiso Glass SDK 应该借鉴 OpenXR 的对象骨架，但不能照抄 OpenXR。**
 
-- `endpoint`：眼镜侧设备，负责传感器、显示、端侧功耗策略、低功耗遥测、高带宽视频或显示会话。
-- `sdc`：空间计算设备，负责融合、AI、记录、回放、用户会话管理、私有网络和对 endpoint 的调度。
-- `host`：开发和调试设备，负责配置、部署、模拟、抓日志、回放和测试。
+OpenXR 解决的是“应用如何面对一个 XR runtime”。Meiso Glass SDK 解决的是“一个 AR 眼镜系统内部，endpoint、SDC、host、传感器、显示、链路、功耗和证据如何用同一套 contract 协作”。所以本 SDK 不应该成为完整 OpenXR runtime，也不应该成为渲染引擎；它应该成为一个 **XR-oriented device/session/power contract layer**。
 
-SDK 必须平台中立，但不能假装硬件约束不存在。i.MX8MM、M4、Orin、LR2021、HM0360、GW1NZ、双 Wi-Fi、大小摄像头和大小麦克风都不应该硬编码进 core，却必须能被 SDK 的模型准确表达。
+本版把 SDK 核心压缩为 10 个一等对象：
 
-## 画图规则
-
-Mermaid 图只用来说明关系，不承载完整清单。每张图最多表达一个问题，节点名保持短，不把长说明写进图里。详细内容放到表格和字段定义中。
-
-## 核心结构图
-
-```mermaid
-flowchart LR
-  Roles[roles] --> Core[core model]
-  Core --> Planes[planes]
-  Planes --> Runtime[runtime]
-  Runtime --> Adapters[adapters]
-  Adapters --> Profiles[profiles]
+```text
+SystemProfile
+Capability
+ResourceTier
+Session
+Space
+ViewSet
+PresentationLayer
+PowerBudget
+PowerProfile
+Evidence
 ```
 
-图里的每一层只负责一类问题：
+能从这 10 个对象推出的内容，进入 SDK bible。不能从这 10 个对象推出的内容，暂时不进入 core。
 
-| 层 | 负责什么 | 不负责什么 |
-|---|---|---|
-| `roles` | `endpoint`、`sdc`、`host` 的职责边界 | 某块板子的设备路径 |
-| `core model` | identity、capability、session、power budget、timebase | 具体 socket、GStreamer、BSP |
-| `planes` | control、telemetry、media、power、observability | 直接驱动硬件 |
-| `runtime` | 状态机、命令调度、session 生命周期 | 选择某个 vendor 分支 |
-| `adapters` | camera、audio、display、radio、power、M4、FPGA 等硬件端口 | 定义产品策略 |
-| `profiles` | 组合 adapter、默认策略、bring-up 差异 | 改写 core contract |
+## 1. 本轮 XR / AR / VR API 调研结论
 
-## 最核心的设计原则
+本轮重点看了 OpenXR、OpenXR SDK Source、Monado、WebXR、Godot XR、StereoKit 这类开放标准或开源 SDK/Runtime。它们对 Meiso 的启发如下：
 
-1. SDK 先表达结构，再表达某块板的实现。
-2. 所有硬件能力先抽象为 capability，再由 adapter 实现。
-3. 所有长时间操作都按 session 管理，不按一次性命令管理。
-4. 功耗是一等模型，不是 session 之后附带的一组日志字段。
-5. 每个 adapter 必须声明自己的功耗等级、质量等级、时延等级和测量可信度。
-6. endpoint、SDC、host 的边界不能因为某个临时 bring-up 脚本而被打穿。
-7. 文档只保留能指导当前 SDK 设计的内容；使用指南和后期移植文档暂不维护。
-
-## “大小系统”抽象
-
-项目中存在大量成对资源：大小核、大小链路、大小摄像机、大小麦克风。SDK 不能把这些只当作普通设备列表，否则功耗策略和会话调度会失去中心。
-
-SDK 使用 `resource_tier` 表达资源层级：
-
-| 资源组 | 小资源 | 大资源 | SDK 抽象 |
+| 来源 | 值得借的部分 | 不应该照抄的部分 | Meiso 落地 |
 |---|---|---|---|
-| 计算 | M4、sensor hub、FPGA helper | A53、Orin CPU/GPU/NPU | `compute_tier` |
-| 网络/无线 | LR2021、BLE、低功耗命令链路 | Wi-Fi 私有高速链路、上游 Wi-Fi/以太网 | `link_tier` |
-| 摄像头 | HM0360/HM01B0/眼动 hint sensor | rich color camera | `vision_tier` |
-| 麦克风 | AAD wake mic、单麦低功耗监听 | 全阵列 PDM capture | `audio_tier` |
-| 显示 | 状态/低亮度/低刷新提示 | AR display session、纹理/视频 | `display_tier` |
-| 处理路径 | tile、ROI、tuple、event | frame、stream、session | `payload_tier` |
+| OpenXR | `instance/system/session/space/view/swapchain/action/layer` 的对象边界；runtime 负责 tracking、composition、peripheral；应用提交 frame/layer | 完整 loader、API layer、所有 graphics binding、controller/haptics 全量模型 | 借对象边界，不做 OpenXR 兼容层 |
+| OpenXR SDK Source | loader、validation layer、trace layer、sample 分离；SDK source 和应用最小依赖分离 | 动态 loader 机制、平台 manifest 机制 | 用 contract test / trace，不做动态插件 loader |
+| Monado | `system/device/compositor/space/tracking/prober/driver` 分层；driver 实现设备接口；复杂逻辑放辅助库 | 直接暴露 Monado XRT 内部接口；完整 HMD runtime | 借 prober/adapter/system builder 思路，保持 Meiso public contract 稳定 |
+| WebXR | `XRSession`、`XRFrame`、`XRView`、`XRReferenceSpace`、feature descriptor；AR anchors/hit-test 是按 feature 进入 session | WebGL/browser 事件模型；浏览器权限模型 | 借 `session + frame + view + space + feature slot`，不绑定 WebGL |
+| Godot XR | XR action map 用“语义 action”隔离设备原始输入；reference space 影响整个 XR 场景解释 | 游戏引擎节点系统和 controller 交互全套 | V0 只保留 semantic input/action slot，不做完整 action map |
+| StereoKit | 面向应用的 API 非常短；OpenXR 之上提供 MR input、UI、asset、simulator；强调 mobile performance by default | UI/physics/asset pipeline/shader 系统 | 借“短 API + simulator + performance default”，不把 SDK 变成 app framework |
 
-这个模型的意义：
+### 1.1 要保留的 XR 核心
 
-- `power_mode` 不是字符串，而是允许哪些 resource tier 和哪些 power level 组合。
-- `session` 不只是启动一个 pipeline，而是声明要占用哪些大/小资源。
-- `capability` 不只是“有摄像头”，而是“在某些功耗等级下能提供某种信息”。
-- 调度器必须能从小资源升级到大资源，也能从大资源降级回小资源。
+Meiso SDK 保留这些核心：
 
-## 功耗模型概览
+1. **System**：一套可被用户使用的 endpoint/SDC/host 组合，不是一块芯片。
+2. **Session**：所有持续行为的生命周期，例如 lowfi sensing、rich video、display AR、presentation、debug capture。
+3. **Space**：head、display、camera、eye、world、SDC fusion 的坐标关系。
+4. **View**：单眼、双眼、多 view、3D display 的最小显示视图抽象。
+5. **Layer**：HUD、status、AR overlay、video、depth-aware、calibration 等呈现层。
+6. **Frame timing**：什么时候呈现、是否错过 deadline、是否降帧/降刷新。
+7. **Action / input slot**：触控、按键、wear state、voice wake、gaze hint 这类语义输入。
+8. **Extension slot**：未来 depth、anchor、hit-test、mesh、scene semantics 只作为 capability/feature 扩展进入。
+9. **Validation / trace**：开发期 contract 检查和证据回放。
 
-早期文档只提了 `power_mode`，这不够。SDK 需要同时表达以下四件事：
+### 1.2 要删掉或推迟的部分
 
-| 概念 | 解决的问题 | 示例 |
+这些东西容易把 bible 写散，当前不进入 core：
+
+| 不进入 core | 原因 | 替代方式 |
 |---|---|---|
-| `power_state` | 设备是否供电、挂起、活动 | `off`、`suspended`、`idle`、`active` |
-| `power_level_u8` | 在 SDK 内排序功耗强度 | `0` 到 `255` |
-| `power_dimensions` | 功耗不是一条轴，需要拆维度 | duty、throughput、quality、latency、thermal |
-| `measured_power` | 已测得的真实数据 | `mw_avg`、`uj_per_frame`、`wake_latency_ms` |
+| 完整 OpenXR loader/runtime | 目标错位；Meiso 是设备/系统 SDK，不是标准 runtime | 后续可做 OpenXR bridge，但 bridge 只消费 Meiso contract |
+| Vulkan/OpenGL/Metal/D3D binding | 初版 endpoint 可能只是接收 SDC 内容，不一定本地渲染复杂 scene | `PresentationSurface` 只描述 surface/stream，不描述 graphics API |
+| Shader/material/scene graph | 这是 render engine 或 app framework 责任 | SDK 只管 layer contract 和 frame timing |
+| 完整 controller action map/haptics | 眼镜 V0 输入不是双手柄 VR | 保留 `SemanticAction` 槽，等触控/语音/手势稳定后扩展 |
+| 全量 anchors/hit-test/mesh API | V0 没有稳定 spatial stack | 先定义 `SpatialCapability` 和 `SpatialQuery` declared slot |
+| 每种未来相机一个 adapter | 会变成幻想 BOM 清单 | 先用 sensor role/modality/spatial semantics 表达未来能力 |
+| API layer 插件系统 | 早期复杂度过高 | 用 contract test、trace recorder、mock wrapper |
 
-`power_level_u8` 是紧凑的策略等级，不直接等于 mW。真实功耗必须通过平台测量表补充。这样做的原因是：Linux Energy Model 也区分真实微瓦和抽象 scale；Android PowerStats 也按 power entity 和 state residency 记录数据；Zephyr 和 Linux runtime PM 都把设备状态转换当作驱动和系统协同问题，而不是单个数值。
+## 2. SDK 的真正定位
 
-## 8-bit 功耗等级标准草案
+```text
+application / tool / test
+        |
+Meiso SDK public API
+        |
+core contract: capability + session + space + view + layer + power + evidence
+        |
+runtime admission + policy
+        |
+ports / adapters
+        |
+endpoint / SDC / host hardware and processes
+```
 
-`power_level_u8` 使用 `0..255`，越大表示越高的资源占用、能量风险或热风险。SDK 只规定分段语义，不要求每个 adapter 支持 256 个离散档位。一个 adapter 可以只支持 `[0, 32, 64, 128, 192]`，也可以支持更细档。
+Meiso SDK 的职责：
 
-| 范围 | 名称 | 默认含义 |
+- 描述 endpoint、SDC、host 有什么能力。
+- 接收一个 intent，生成可执行 session plan。
+- 在启动 session 前做 power/link/thermal/admission 判断。
+- 管理持续 session 的状态、降级、恢复、停止。
+- 记录证据，证明为什么某个 session 被接受、拒绝或降级。
+- 为单眼初版、未来双眼、多 view、3D display、depth/spatial 能力保留稳定扩展位。
+
+Meiso SDK 不做：
+
+- 不替代 OpenXR runtime。
+- 不替代 Unity/Godot/StereoKit/Three.js。
+- 不定义 shader/material/scene graph。
+- 不把 i.MX8MM、Orin、HM0360、GW1NZ、LR2021 写成 core enum。
+- 不把 `power_level_u8` 伪装成真实 mW。
+
+## 3. 三个运行角色
+
+| 角色 | SDK 职责 | 不能越界做什么 |
 |---|---|---|
-| `0` | `off` | 断电或不可用，不保留运行状态 |
-| `1..15` | `retention` | 保留少量状态，不能主动采样 |
-| `16..31` | `wake_ready` | 可被唤醒或可产生中断，吞吐接近 0 |
-| `32..63` | `sentinel` | 常驻低功耗感知、低频采样、事件触发 |
-| `64..95` | `sparse_capture` | 稀疏采样、低分辨率、低 fps、tuple 输出 |
-| `96..127` | `local_process` | 本地预处理、ROI/tile、低码率事件流 |
-| `128..159` | `stream_low` | 低/中等码率连续流，允许明显降质 |
-| `160..191` | `stream_rich` | rich video/audio/display，会唤醒大资源 |
-| `192..223` | `stream_peak` | 高分辨率、高刷新、多路或低压缩 |
-| `224..255` | `debug_boost` | 校准、raw dump、压测、热风险高，不作为默认产品模式 |
+| `endpoint` | 眼镜侧传感器、显示、低功耗策略、无线链路、端侧 adapter、端侧 measurement | 把 BSP 设备路径暴露成 public API；绕过 session 直接开大资源 |
+| `sdc` | 空间融合、AI、回放、rich media 接收、session orchestration、私有网络策略 | 直接假设 endpoint 的硬件路径；把应用渲染细节塞进 endpoint core |
+| `host` | 开发、测试、配置、模拟、抓日志、回放、contract validation | 成为产品运行时依赖；持有本地敏感配置进入 remote 仓库 |
 
-如果未来需要 128 档，可以保留同一语义，把最低 7 bit 作为等级，最高 bit 作为 flag。但当前建议 wire format 直接保留 8 bit，避免之后扩展困难。
+角色是 contract，不是进程名。测试时一个进程可以模拟多个角色，但日志和 capability 必须保留真实 role。
 
-## 多维功耗等级
-
-单一 `power_level_u8` 只能用于排序，不能解释为什么高或低。每个 adapter 的 capability 和 status 应再暴露维度：
-
-| 字段 | 范围 | 含义 |
-|---|---|---|
-| `state_level_u8` | `0..255` | 供电/挂起/活动强度 |
-| `duty_level_u8` | `0..255` | active time、采样频率、radio airtime |
-| `throughput_level_u8` | `0..255` | 像素率、音频采样率、bitrate、packet rate |
-| `quality_level_u8` | `0..255` | 分辨率、bit depth、SNR、刷新率、压缩损失 |
-| `latency_level_u8` | `0..255` | 越高表示越低时延、更快唤醒、更高常驻成本 |
-| `thermal_level_u8` | `0..255` | 热压力或热预算消耗 |
-| `confidence_level_u8` | `0..255` | 等级来自估算、bench、rail measurement 还是量产测量 |
-
-调度器可以先用 `power_level_u8` 做粗排序，再用维度判断是否符合 session 约束。例如一个摄像头可能 `state_level_u8=160`，因为传感器和 CSI 已经工作；但 `throughput_level_u8=48`，因为只传 ROI tuple。
-
-## 功耗策略闭环
+## 4. 核心对象图
 
 ```mermaid
 flowchart LR
-  Demand[demand] --> Budget[budget]
-  Budget --> Session[session]
-  Session --> Measure[measure]
-  Measure --> Policy[policy]
-  Policy --> Budget
+  Profile[SystemProfile] --> Capability[Capability]
+  Capability --> Session[Session]
+  Session --> Space[Space]
+  Session --> ViewSet[ViewSet]
+  Session --> Layer[PresentationLayer]
+  Session --> Power[PowerBudget]
+  Capability --> PowerProfile[PowerProfile]
+  Session --> Evidence[Evidence]
 ```
 
-闭环解释：
+| 对象 | 最小定义 | 典型问题 |
+|---|---|---|
+| `SystemProfile` | 一个可运行系统的装配声明 | 这个 endpoint/SDC 组合有哪些已知能力？哪些只是 declared？ |
+| `Capability` | 可被请求的能力 | 能做什么？属于哪个 role？依赖什么资源？已验证到什么程度？ |
+| `ResourceTier` | 大小系统资源层级 | 是 sentinel 小资源，还是 rich 大资源，还是升级路径？ |
+| `Session` | 持续行为生命周期 | 谁请求了什么？runtime 实际选了什么？现在状态是什么？ |
+| `Space` | 坐标系和空间关系 | camera/display/head/world/SDC 之间怎么变换？可信度多少？ |
+| `ViewSet` | 一个 presentation session 的 view 集合 | 单眼、双眼、多 view、3D display 如何表达？ |
+| `PresentationLayer` | 要呈现的内容层 | HUD、status、video、AR overlay、depth-aware 谁在上面？ |
+| `PowerBudget` | 本 session 的能量/功率/热/链路预算 | 能不能启动？怎么降级？ |
+| `PowerProfile` | adapter 的可用功耗点和证据 | 每个 level 的 mW/latency/confidence 从哪来？ |
+| `Evidence` | 可回放证据 | 为什么这么调度？真实观测是什么？ |
 
-- `demand`：上层要什么，例如 eye hint、rich video、display AR。
-- `budget`：当前可用能量、热、时延和链路预算。
-- `session`：实际启动的 adapter 组合。
-- `measure`：rail、runtime、packet、latency、drop、temperature。
-- `policy`：根据测量结果继续、降级、升级或停止。
+## 5. spec / status / evidence 三分法
 
-## 信息量和功耗要解耦
+所有长生命周期对象都用同一种形状：
 
-摄像机尤其容易混淆。SDK 必须区分：
+```yaml
+metadata:
+  id: string
+  revision: string
+  owner_role: endpoint | sdc | host
+spec:
+  desired_or_declared_shape: map
+status:
+  observed_or_selected_state: map
+evidence:
+  measurements: []
+  logs: []
+  validation: []
+  unknowns: []
+```
 
-- `capture_cost`：传感器、MIPI/parallel interface、ISP、VPU、内存写入消耗。
-- `compute_cost`：ROI、tile、feature、encode、AI prefilter 消耗。
-- `egress_cost`：无线、以太网、BLE/LR、USB 或共享内存传输消耗。
-- `information_level`：输出给 SDC 或 host 的信息丰富度。
+规则：
 
-示例：
+1. `spec` 是请求或声明，不代表已经发生。
+2. `status` 是 runtime 选择或 adapter 观察到的状态。
+3. `evidence` 是测量、日志、校验和来源。
+4. 任何 admission、降级、失败都必须能在 `evidence` 中找到原因。
 
-| 场景 | capture_cost | egress_cost | information_level |
-|---|---:|---:|---:|
-| sensor off | 0 | 0 | 0 |
-| motion interrupt | 低 | 极低 | 事件 |
-| lowfi 160x120 5fps 本地 ROI | 中低 | 低 | tuple/tile |
-| 720p 30fps H.264 | 高 | 高 | stream |
-| full raw calibration | 很高 | 很高 | raw frame |
+## 6. SystemProfile 与 Capability
 
-因此 `CameraAdapter` 不能只声明 `fps` 和 `resolution`。它还要声明采集、处理、传输三段的预算和允许输出的信息形态。
+`SystemProfile` 是平台装配文件，不是普通 config。它应该声明“系统可能有什么能力，以及这些能力的验证状态”。
 
-## 文档收敛规则
+```yaml
+SystemProfile:
+  profile_id: meiso.endpoint.mx8mm.devkit.v0
+  role: endpoint
+  platform_family: mx8mm_dev
+  capabilities:
+    - /cap/camera/world/lowfi
+    - /cap/camera/world/rich
+    - /cap/camera/eye/hint
+    - /cap/display/primary/mono
+    - /cap/radio/lr2021/telemetry_tx
+    - /cap/radio/ble/command_rx
+    - /cap/power/rail_probe
+  default_policy: /policy/product/default
+  measurement_sources:
+    - declared_only
+    - bench_fixture
+  unknowns:
+    - display_panel_power_curve_unmeasured
+    - stereo_view_not_populated
+```
 
-SDK 相关设计只维护以下三个文档：
+`Capability` 是 SDK 判断能不能做某事的入口：
 
-- `SDK_DESIGN_OVERVIEW.md`：设计概览、短图、边界、大小系统抽象、功耗总模型。
-- `SDK_SUBSYSTEM_DESIGN.md`：各子系统的详细设计案，特别是 adapter、media、telemetry、power policy。
-- `SDK_DEVELOPMENT_PLAN.md`：开发计划、当前进度、风险、未决问题和下一步。
+```yaml
+Capability:
+  metadata:
+    capability_id: /cap/display/primary/mono
+    family: display
+    owner_role: endpoint
+  spec:
+    resource_tier:
+      display: interactive
+      link: high_bandwidth_rx
+      compute: a53_gpu
+    output_forms: [presentation_surface]
+    required_spaces: [/space/head, /space/display/primary]
+    power_profile_ref: /power/display/primary
+  status:
+    availability: available | unavailable | degraded | blocked
+    validation_state: declared | mocked | detected | smoke_tested | measured | blocked
+  evidence:
+    measurement_source: declared_only | rail_probe | bench_fixture | product_calibrated
+    confidence_level_u8: 32
+    unknowns: []
+```
 
-暂不维护独立 guide、ADR、checklist、protocol 细则、platform 文档和后期使用文档。以后只有当某个内容已经稳定到必须独立维护时，才从这三份文档中拆出新文档。
+Capability 命名使用语义路径，不使用裸设备节点：
 
-## 本轮调研依据
+```text
+/cap/camera/world/lowfi
+/cap/camera/world/rich
+/cap/camera/eye/hint
+/cap/display/primary/mono
+/cap/presentation/mono_hud
+/cap/spatial/depth/future
+/cap/radio/lr2021/telemetry_tx
+/cap/power/rail_probe
+```
 
-本轮文档更新参考了这些方向：
+## 7. Session 是唯一持续行为入口
 
-- Linux runtime PM：设备 runtime suspend/resume、usage count、autosuspend 思路。
-- Zephyr Device PM：device state、device runtime PM、device dependency 和 busy 状态。
-- Android PowerStats HAL：power entity、state residency、累计能量统计。
-- Linux Energy Model：performance state 到 power cost table，可以是真实微瓦，也可以是抽象 scale。
-- Linux `hwmon` 和 `powercap`：电压、电流、功率和 power zone 的用户态观测接口。
-- V4L2 和 W3C Media Capture：摄像头能力需要表达 pixel format、frame size、frame interval、width、height、frameRate。
-- MIPI CSI-2/DSI-2：camera/display 低功耗路径、lane/bandwidth、adaptive refresh、AOSC 等方向。
-- BLE/Wi-Fi 低功耗资料：radio 功耗主要受 TX power、连接/广播间隔、airtime、payload size、wake interval 影响。
+所有非瞬时操作都必须是 session：
 
-这些资料只作为设计约束来源，不表示 SDK 会直接绑定某个 OS、协议栈或厂商实现。
+- `lowfi_sensing`
+- `eye_hint`
+- `rich_video`
+- `display_ar`
+- `presentation`
+- `audio_capture`
+- `spatial_query`
+- `debug_capture`
+- `power_measurement`
+
+状态机：
+
+```mermaid
+stateDiagram-v2
+  [*] --> proposed
+  proposed --> admitted
+  proposed --> rejected
+  admitted --> starting
+  starting --> running
+  starting --> failed
+  running --> degraded
+  degraded --> recovering
+  recovering --> running
+  running --> stopping
+  degraded --> stopping
+  stopping --> stopped
+  failed --> stopped
+```
+
+最小 session：
+
+```yaml
+Session:
+  metadata:
+    session_id: sess_...
+    owner_role: sdc
+    idempotency_key: req_...
+  spec:
+    session_type: presentation
+    requested_capabilities: [/cap/presentation/mono_hud]
+    priority: user_visible
+    power_budget_ref: /budget/interactive_low
+    required_spaces: [/space/head, /space/display/primary]
+  status:
+    state: admitted | running | degraded | stopped | failed
+    selected_capabilities: []
+    selected_power_levels: {}
+    degradation_reason: null
+  evidence:
+    admission_trace: []
+    frame_stats: []
+    power_summary: null
+```
+
+## 8. Space：AR 眼镜必须有坐标 contract
+
+AR SDK 不能只管媒体流。即便 V0 不做完整 SLAM，SDK 也要能表达坐标关系，否则 eye hint、display、world camera、future depth 都会散掉。
+
+核心 space：
+
+| Space | 含义 |
+|---|---|
+| `/space/head` | 用户头部/眼镜刚体参考系 |
+| `/space/display/primary` | 初版单眼显示光学参考系 |
+| `/space/camera/world_lowfi` | 低功耗世界相机参考系 |
+| `/space/camera/world_rich` | rich color camera 参考系 |
+| `/space/camera/eye_primary` | 眼动 hint camera 参考系 |
+| `/space/sdc/world` | SDC 融合后的世界参考系 |
+| `/space/local` | 当前 session 本地参考系 |
+
+`SpaceRelation` 只要求最小姿态、时间和可信度：
+
+```yaml
+SpaceRelation:
+  from: /space/camera/world_lowfi
+  to: /space/head
+  timebase: monotonic
+  timestamp_ns: 0
+  pose:
+    position_m: [0, 0, 0]
+    orientation_xyzw: [0, 0, 0, 1]
+  validity: valid | estimated | unavailable
+  confidence_level_u8: 0
+  source: factory_calibration | runtime_tracking | declared_only
+```
+
+V0 可以只有 declared/factory calibration；但字段必须现在就定，否则未来 stereo/depth/SLAM 会返工。
+
+## 9. ViewSet：单眼是 profile，不是 core 假设
+
+初版单眼：
+
+```yaml
+ViewSet:
+  viewset_id: /viewset/mono_primary
+  topology: mono
+  views:
+    - view_id: primary
+      eye: none
+      display_space: /space/display/primary
+      recommended_resolution: [640, 480]
+      supported_refresh_hz: [30, 60]
+      projection_kind: profile_declared
+  depth_composition: unsupported
+```
+
+未来双眼/多 view/3D：
+
+```yaml
+ViewSet:
+  topology: stereo | multiview | three_d
+  views:
+    - {view_id: left_primary, eye: left, display_space: /space/display/left}
+    - {view_id: right_primary, eye: right, display_space: /space/display/right}
+  stereo_mode: side_by_side | dual_surface | time_multiplexed | optical_engine_specific
+  depth_composition: none | declared | supported | measured
+```
+
+规则：
+
+1. `DisplayAdapter` 管 panel/link/brightness/refresh/power。
+2. `ViewSet` 管有几个 view、每个 view 对应什么 space/projection/viewport。
+3. `PresentationLayer` 管内容层和合成意图。
+4. `RenderEngine` 不进入 SDK core。
+
+## 10. PresentationContract：SDK 管呈现，不管渲染引擎
+
+`PresentationLayer`：
+
+```yaml
+PresentationLayer:
+  layer_id: hud_main
+  layer_type: status | hud | ar_overlay | video | calibration | depth_mask | passthrough_hint | debug
+  target_views: [primary]
+  source:
+    kind: sdc_stream | endpoint_generated | static_asset | diagnostic
+    surface_ref: /surface/hud/main
+  composition:
+    order: 10
+    alpha_mode: opaque | premultiplied | additive
+    space: /space/display/primary | /space/head | /space/sdc/world
+  constraints:
+    max_latency_ms: 50
+    min_refresh_hz: 30
+    allow_drop: true
+  power_hints:
+    brightness_policy: auto | capped | fixed
+    allow_refresh_degrade: true
+    allow_viewport_scale: true
+```
+
+`FrameTiming`：
+
+```yaml
+FrameTiming:
+  predicted_display_time_ns: int
+  deadline_ns: int
+  submitted_time_ns: int | null
+  displayed_time_ns: int | null
+  missed_deadline: bool
+  drop_reason: none | late | power_policy | link_congestion | adapter_busy
+```
+
+Meiso SDK 不定义应用怎么画一个 HUD，但必须知道 HUD 的 layer type、target view、frame timing、功耗约束和降级路径。
+
+## 11. SpatialCapability：深度/锚点/mesh 先作为扩展槽
+
+未来 depth camera、stereo camera、IR、event camera、scene mesh、anchors、hit-test 都不能现在写成具体 adapter。正确做法是定义能力槽：
+
+```yaml
+SensorSlot:
+  slot_id: /slot/camera/depth/front_future
+  sensor_role: depth | world | eye | ir | event | calibration | debug
+  capture_modality: depth_tof | structured_light | stereo_pair | rgb | ir | event | unknown
+  mounted_space: /space/camera/depth_front
+  validation_state: declared
+```
+
+```yaml
+SpatialCapability:
+  capability_id: /cap/spatial/depth/future
+  spatial_role: depth | occlusion | hit_test | anchor | mesh | scene_semantics | pose
+  source_slots: [/slot/camera/depth/front_future]
+  output_forms: [depth_map, confidence_map, point_cloud, plane, mesh, anchor, hit_result]
+  coordinate_space: /space/sdc/world | /space/head | /space/camera/depth_front
+  validation_state: declared
+```
+
+规则：
+
+- `declared` 能进 profile，不能被 runtime 当成可用能力。
+- `detected` 只能说明设备存在，不能说明有稳定输出。
+- `measured` 才能进入自动 power policy。
+- 未来新增 depth adapter 时，必须消费同一 `SpatialCapability` contract。
+
+## 12. 功耗定位：admission 的第一等约束
+
+本版把功耗模型简化成 4 个必需概念：
+
+| 概念 | 用途 | 是否 core 必需 |
+|---|---|---|
+| `PowerBudget` | session 请求侧的预算 | MUST |
+| `PowerLevel` | adapter 内部策略等级，`0..255` | MUST |
+| `PowerCostPoint` | 某 level 下的 mW/latency/thermal/confidence | MUST |
+| `MeasuredPowerPoint` | 实测证据 | SHOULD，V0 可 `declared_only` |
+
+`PowerLevel` 仍保留 8-bit，但只规定分段，不要求 256 档都支持：
+
+| 范围 | 含义 |
+|---|---|
+| `0` | off |
+| `1..31` | retention / wake ready |
+| `32..63` | sentinel |
+| `64..95` | sparse capture |
+| `96..127` | local process |
+| `128..159` | low stream |
+| `160..191` | rich stream / interactive display |
+| `192..223` | peak stream |
+| `224..255` | debug / calibration / boost |
+
+`PowerCostPoint`：
+
+```yaml
+PowerCostPoint:
+  level: 64
+  adapter_state: active
+  settings: {}
+  expected_mw: null
+  peak_mw: null
+  thermal_risk_u8: 32
+  wake_latency_ms: 20
+  settle_latency_ms: 5
+  unit_cost:
+    uj_per_event: null
+    uj_per_frame: null
+    bytes_per_joule: null
+  measurement_source: declared_only | datasheet_estimate | driver_counter | rail_probe | bench_fixture | product_calibrated
+  confidence_level_u8: 32
+```
+
+本版不再要求所有 adapter 都填完整 `state/duty/throughput/quality/latency/thermal` 七维字段。那些字段可以作为 family-specific `settings` 或 `cost_detail` 出现。这样文档更清楚，代码也更容易先落地。
+
+## 13. ResourceTier：保留大小系统，但减少散度
+
+```yaml
+ResourceTier:
+  compute: sentinel | low_power_helper | app_cpu | sdc_ai | debug
+  vision: none | lowfi | eye_hint | rich | depth_future
+  audio: none | wake | voice_hint | capture | array
+  display: none | status | hud | interactive | video | calibration
+  link: none | low_power_control | telemetry | high_bandwidth_rx | high_bandwidth_tx | debug
+  payload: event | tuple | tile | compressed_stream | raw
+```
+
+ResourceTier 的职责只有两个：
+
+1. admission 时判断是否允许唤醒大资源。
+2. evidence 中解释一次 session 为什么耗电。
+
+不要让 ResourceTier 变成硬件型号表。
+
+## 14. V0 推荐最小 SDK surface
+
+V0 应先实现这些 public API / command：
+
+```text
+query_system_profile()
+query_capabilities(filter)
+propose_session(spec)
+start_session(session_id | spec, idempotency_key)
+stop_session(session_id, reason)
+get_session_status(session_id)
+subscribe_telemetry(families)
+get_evidence(session_id)
+```
+
+V0 最小 session types：
+
+```text
+lowfi_sensing
+eye_hint
+rich_video
+presentation
+audio_capture
+power_measurement
+debug_capture
+```
+
+V0 不做：
+
+```text
+OpenXR bridge
+RenderAdapter
+DepthCameraAdapter
+full action map
+anchors public API
+hit-test public API
+mesh public API
+```
+
+这些可以先作为 `declared` capability 和 schema test 存在。
+
+## 15. 文档收敛规则
+
+仍然只维护三份 bible：
+
+| 文件 | 负责什么 |
+|---|---|
+| `SDK_DESIGN_OVERVIEW.md` | 边界、原则、核心对象、XR 抽象取舍 |
+| `SDK_SUBSYSTEM_DESIGN.md` | 字段、状态机、adapter contract、plane、profile、测试 contract |
+| `SDK_DEVELOPMENT_PLAN.md` | phase gate、验收、风险、未决问题、代码化顺序 |
+
+不新增独立 guide、ADR、protocol、platform、checklist，除非某个内容已经稳定、被重复引用、继续放在三份 bible 中明显降低可读性。
+
+## 16. 本版研究依据
+
+- OpenXR 1.1 Specification / Registry
+- Khronos OpenXR SDK Source
+- Monado OpenXR Runtime developer documentation
+- WebXR Device API / Anchors / Hit Test modules
+- Godot XR / OpenXR documentation
+- StereoKit documentation
+- 现有 Meiso SDK 草稿、dev hardware sketch、endpoint peripheral validation board

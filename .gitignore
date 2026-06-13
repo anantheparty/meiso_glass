@@ -26,6 +26,10 @@ dist/
 logs/
 *.log
 
+# Local SDK bible update packages
+docs/SDK/bible/meiso_sdk_bible_updated*/
+docs/SDK/bible/meiso_sdk_bible_updated*.zip
+
 # Local secrets
 .env
 .env.*

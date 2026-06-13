@@ -1,709 +1,874 @@
-# SDK 子系统详细设计案
+# Meiso Glass SDK Bible：子系统详细设计案
 
-## 设计目标
+> 状态：Bible v0.4 XR-core 草案
+> 修订日期：2026-06-13
+> 目标：把 Meiso SDK 的稳定 contract 写成可落代码、可 mock、可测试、可扩展到单眼/双眼/depth/spatial 的结构。
 
-本文件定义 SDK 当前应该具备的结构，而不是某块开发板的最终实现方式。目标是先形成清晰的模块边界，使后续 i.MX8MM、Orin、Android、embedded Linux、模拟器和未来硬件都能沿同一套结构接入。
+## 0. 本文件边界
 
-这版重点补强功耗模型和 adapter contract。以前只说“大资源/小资源”，还不够指导实现。现在需要把每个 adapter 的功耗等级、能力边界、信息输出等级和测量可信度作为 contract 的一部分。
+本文是 `SDK_DESIGN_OVERVIEW.md` 的展开，负责字段和 contract。本文不写使用教程，不写板级飞线，不写完整 OpenXR runtime，也不写 render engine。
 
-## 总体分层
+规范词：
 
-```mermaid
-flowchart TB
-  API[API] --> Core[core]
-  Core --> Runtime[runtime]
-  Runtime --> Ports[ports]
-  Ports --> Adapters[adapters]
-  Adapters --> Hardware[hardware]
-```
-
-分层规则：
-
-- `API` 面向应用、dashboard 和测试。
-- `core` 只定义 identity、timebase、capability、session、power、error。
-- `runtime` 负责状态机、命令调度、session 生命周期。
-- `ports` 定义 transport、camera、audio、display、radio、power、M4、FPGA 等接口。
-- `adapters` 可以绑定 BSP、设备节点、进程、socket、driver、firmware。
-- `hardware` 是真实设备或 mock/simulator。
-
-## 核心领域模型
-
-### Identity
-
-每个实体至少包含：
-
-| 字段 | 说明 |
+| 词 | 含义 |
 |---|---|
-| `role` | `endpoint`、`sdc`、`host` |
-| `device_id` | 稳定设备 ID |
-| `instance_id` | 当前进程或本次启动实例 ID |
-| `platform_id` | 平台 profile ID |
-| `capability_revision` | 能力声明版本 |
-
-### Capability
-
-Capability 是 SDK 判断“能不能做某事”的唯一入口。
-
-建议字段：
-
-```text
-capability_id
-family
-role_owner
-resource_tier
-power_profile
-quality_profile
-latency_profile
-availability
-limits
-dependencies
-metrics
-adapter_id
-validation_state
-```
-
-`validation_state` 初始只需要：
-
-- `declared`：配置声明存在。
-- `mocked`：mock 可运行。
-- `detected`：真实设备可检测。
-- `smoke_tested`：真实链路跑通过。
-- `measured`：有功耗、延迟或质量数据。
-- `blocked`：已知阻塞。
-
-### Session
-
-所有非瞬时操作都必须是 session：
-
-- rich video session。
-- lowfi vision session。
-- eye hint session。
-- audio capture session。
-- display session。
-- power mode session。
-- firmware/update/debug session。
-
-Session 必须包含：
-
-```text
-session_id
-session_type
-owner_role
-requested_capabilities
-resource_tiers
-power_budget
-information_budget
-state
-start_time
-last_transition
-policy
-metrics
-error
-```
-
-基础状态：
-
-```text
-idle -> starting -> running -> stopping -> stopped
-starting -> failed
-running -> degraded
-degraded -> recovering -> running
-running -> failed
-```
-
-## Power Model
-
-### 为什么要把功耗放进 adapter
-
-功耗不是只有整机 mode。一个 session 的真实消耗由多个 adapter 的状态叠加产生：
-
-- 摄像头传感器、接口、ISP、memory copy。
-- 编码器或 VPU。
-- radio airtime 和 TX power。
-- display brightness、refresh rate、content pattern。
-- M4/FPGA wake interval。
-- storage flush。
-- telemetry/logging 自身。
-
-如果只在 `PowerAdapter` 中记录整机状态，调度器无法判断“为了一个眼动 tuple 是否值得启动 rich camera”，也无法比较“本地 ROI 处理”和“直接传低清帧”哪个更省。
-
-### Adapter Power Profile
-
-每个 adapter 都必须暴露 `power_profile`。最小结构：
-
-```text
-profile_version
-scheme: u8
-supported_levels
-default_level
-current_level
-state_level_u8
-duty_level_u8
-throughput_level_u8
-quality_level_u8
-latency_level_u8
-thermal_level_u8
-confidence_level_u8
-measured_points
-unknowns
-```
-
-`supported_levels` 不要求 256 个档都支持。硬件只需要列出自己实际支持的点，例如 `[0, 16, 32, 64, 96, 128]`。
-
-`measured_points` 是 profile 中最重要的部分，后续应逐步补齐：
-
-```text
-level
-state
-settings
-mw_avg
-mw_peak
-wake_latency_ms
-settle_latency_ms
-uj_per_event
-uj_per_frame
-bytes_per_second
-sample_window_ms
-measurement_source
-confidence_level_u8
-```
-
-`measurement_source` 建议值：
-
-- `declared_only`
-- `datasheet_estimate`
-- `driver_counter`
-- `os_powerstats`
-- `rail_probe`
-- `bench_fixture`
-- `product_calibrated`
-
-### 8-bit 等级和真实功耗的关系
-
-`power_level_u8` 是排序和策略用字段，不直接等于 mW。真实 mW 与硬件、电压、温度、驱动、链路质量、负载有关。
-
-设计约束：
-
-- 同一个 adapter 内，level 越高默认不能比更低 level 更省，除非 profile 明确说明反例。
-- 不同 adapter family 之间，level 只能粗略比较，不能拿 `CameraAdapter:128` 和 `RadioAdapter:128` 直接换算 mW。
-- 能测 mW 时必须记录 mW；不能测时可以先用抽象 level。
-- `confidence_level_u8` 低时，policy 只能做保守调度，不能做精细预算。
-
-### 默认等级段
-
-| 范围 | 含义 | Policy 默认态度 |
-|---|---|---|
-| `0` | off | 只有明确请求才启动 |
-| `1..31` | retention / wake_ready | 可以常驻 |
-| `32..63` | sentinel | 可以长时间运行，但必须采样验证 |
-| `64..95` | sparse_capture | 允许短周期或低 duty |
-| `96..127` | local_process | 需要 session 预算 |
-| `128..159` | low stream | 需要 SDC 或用户意图 |
-| `160..191` | rich stream | 默认限时，必须可降级 |
-| `192..223` | peak stream | 只用于明确 high quality session |
-| `224..255` | debug / boost | 不作为产品默认路径 |
-
-## Adapter Family 设计
-
-### CameraAdapter
-
-Camera 的功耗不能只看分辨率和 fps。需要拆成三段：
-
-| 维度 | 说明 |
-|---|---|
-| `capture_level_u8` | sensor、clock、exposure、pixel rate、interface |
-| `process_level_u8` | ISP、ROI、tile、feature、encode 前处理 |
-| `egress_level_u8` | 输出到 SDC/host/radio 的数据量 |
-| `information_level_u8` | 输出信息丰富度，不等于传输字节数 |
-
-Camera capability 建议字段：
-
-```text
-sensor_role: wake | lowfi | eye_hint | rich | debug
-pixel_formats
-frame_sizes
-frame_intervals
-crop_modes
-binning_modes
-roi_modes
-local_feature_modes
-transport_outputs
-power_profile
-```
-
-参考 V4L2 和 W3C Media Capture 的做法，SDK 应能表达 `pixel_format`、`width`、`height`、`frame_interval` 或 `frameRate`。但 SDK 不应该只复刻 V4L2，因为眼镜端还要表达 ROI、tile、event、tuple、隐私和无线预算。
-
-Camera 默认档位草案：
-
-| level | 名称 | 典型能力 | 典型输出 |
-|---:|---|---|---|
-| `0` | `off` | sensor off | none |
-| `16` | `standby` | register/I2C 可访问 | status |
-| `32` | `motion_wake` | 中断或低频光流 | event |
-| `64` | `lowfi_sparse` | 小图、低 fps、crop/binning | ROI/tile |
-| `96` | `lowfi_continuous` | 低清连续感知 | tuple/packet |
-| `128` | `preview_stream` | 中等分辨率 H.264/RAW preview | low stream |
-| `160` | `rich_video` | 720p/1080p 级 session | stream |
-| `192` | `multi_or_high_rate` | 多路/高 fps/高码率 | stream |
-| `224` | `raw_debug` | full raw/calibration | raw dump |
-
-需要明确的策略：
-
-- 采集等级高，不代表必须传输高信息量。可以高采集、本地低信息输出。
-- 传输等级低，不代表传感器低功耗。比如 raw sensor 开着但只传 motion tuple。
-- `information_level_u8` 需要和 privacy/security 一起设计，低信息输出可能是功耗选择，也可能是隐私选择。
-
-### VideoEncoderAdapter
-
-Encoder 的功耗主要由输入像素率、编码复杂度、码率、I/P/B frame 策略、硬件/软件路径决定。
-
-建议字段：
-
-```text
-codec
-profile
-input_pixel_rate
-target_bitrate
-gop
-latency_mode
-hardware_path
-power_profile
-```
-
-默认等级：
-
-| level | 名称 | 说明 |
-|---:|---|---|
-| `0` | `off` | encoder 不运行 |
-| `64` | `thumbnail_or_tuple` | 只处理低清或 feature 输出 |
-| `128` | `low_latency_low_bitrate` | 低码率实时流 |
-| `160` | `rich_realtime` | rich H.264/H.265 实时流 |
-| `192` | `high_quality_record` | 更高码率或更高质量 |
-| `224` | `debug_raw_or_stress` | raw dump、压测、校准 |
-
-未决问题：硬件 VPU 通常比 CPU 软件编码省电，但如果唤醒额外电源域或导致内存带宽增加，实际差异需要 rail measurement。
-
-### RadioAdapter
-
-Radio 功耗核心不是“协议名”，而是 airtime、TX power、wake interval、payload size、重传和监听窗口。
-
-建议字段：
-
-```text
-link_role: low_power_control | telemetry | media | upstream
-phy
-tx_power_dbm
-airtime_budget_ms_per_s
-wake_interval_ms
-connection_interval_ms
-payload_budget_bps
-retry_policy
-power_profile
-```
-
-默认等级：
-
-| level | 名称 | 典型能力 |
-|---:|---|---|
-| `0` | `radio_off` | 断开 |
-| `16` | `wake_listen` | 极低 duty 监听或中断 |
-| `32` | `advertise_sparse` | 低频广播/发现 |
-| `64` | `control_link` | command、heartbeat、低频 telemetry |
-| `96` | `telemetry_burst` | tuple/packet burst |
-| `128` | `low_bandwidth_stream` | 低码率持续传输 |
-| `160` | `media_stream` | 视频或高频 sensor |
-| `192` | `high_bandwidth` | 高吞吐 Wi-Fi/以太网侧 |
-| `224` | `debug_rf` | RF 调试、扫描、压测 |
-
-BLE 资料显示，TX power、advertising/connection interval、peripheral latency、PHY 和 payload size 都会明显影响电流。Wi-Fi 侧也要关心 power save、TWT、listen interval 和 active window。SDK 不应该把 `link_tier=low_power` 简化成某个固定 radio。
-
-### DisplayAdapter
-
-Display 的功耗受 brightness、refresh rate、resolution、pixel content、command/video mode、GPU composition、foveation、display memory 影响。
-
-建议字段：
-
-```text
-display_role: status | hud | ar | debug
-brightness_nits_or_pct
-refresh_rate_hz
-resolution
-content_type
-update_region
-foveation_mode
-power_profile
-```
-
-默认等级：
-
-| level | 名称 | 典型能力 |
-|---:|---|---|
-| `0` | `off` | display off |
-| `16` | `retention` | panel state retained |
-| `32` | `status_low_refresh` | 状态提示、低刷新 |
-| `64` | `hud_sparse` | 小区域 HUD |
-| `128` | `ar_low_refresh` | AR 低刷新 |
-| `160` | `ar_interactive` | 交互 AR |
-| `192` | `video_or_high_brightness` | 视频、高亮或高刷新 |
-| `224` | `calibration_debug` | 色彩/亮度/校准 |
-
-MIPI DSI-2 的 adaptive refresh 和 video-to-command mode 方向说明，显示链路不应只按“开/关”建模。Android 对高刷新率也明确把功耗、发热和实际帧率纳入策略。
-
-### AudioAdapter
-
-Audio 要区分唤醒、关键词、低码率事件、全阵列采集。
-
-建议字段：
-
-```text
-audio_role: wake | voice_hint | capture | beamforming | debug
-sample_rate_hz
-channels
-bit_depth
-vad_mode
-keyword_mode
-power_profile
-```
-
-默认等级：
-
-| level | 名称 | 典型能力 |
-|---:|---|---|
-| `0` | `off` | mic off |
-| `16` | `wake_ready` | AAD 或外部 wake |
-| `32` | `vad` | voice activity event |
-| `64` | `keyword_or_hint` | keyword/hint |
-| `96` | `low_rate_capture` | 低采样率 capture |
-| `128` | `voice_stream` | 单/双麦语音 |
-| `160` | `array_capture` | 阵列或 beamforming |
-| `224` | `raw_debug` | 多通道 raw dump |
-
-### ComputeAdapter
-
-Compute 需要表达 CPU、MCU、NPU、GPU、DSP、FPGA helper 的不同能效曲线。
-
-建议字段：
-
-```text
-compute_role: sentinel | app_cpu | ai | gpu | dsp | fpga
-performance_points
-memory_bandwidth_budget
-accelerator_context
-power_profile
-```
-
-等级需要和 Linux Energy Model 类似：同一个 performance domain 应有多个 performance state，每个 state 可以有 `frequency`、`power`、`cost` 或抽象 cost。
-
-### M4Bridge
-
-M4Bridge 是低功耗策略的关键，不应只是串口/mailbox 工具。
-
-建议字段：
-
-```text
-bridge_role: wake | sensor_hub | power_policy | radio_scheduler | fpga_control
-mailbox_rate_hz
-shared_memory_bytes
-wake_sources
-firmware_state
-power_profile
-```
-
-默认等级：
-
-| level | 名称 | 典型能力 |
-|---:|---|---|
-| `0` | `off` | bridge unavailable |
-| `16` | `mailbox_ready` | 可被 host/A53 查询 |
-| `32` | `sentinel_control` | 低频 sensor/radio 调度 |
-| `64` | `event_collector` | 聚合事件、发 wake |
-| `96` | `lowfi_manager` | 管理低功耗视觉或 FPGA |
-| `128` | `firmware_update` | OTA/debug session |
-
-### FpgaBridge
-
-FPGA helper 只有在 energy per useful telemetry frame 优于 M4/A53 时才值得启用。
-
-建议字段：
-
-```text
-fpga_role: lowfi_vision | packet_filter | timing | debug
-bitstream_id
-clock_rate
-input_rate
-output_tuple_rate
-fifo_depth
-power_profile
-```
-
-默认等级：
-
-| level | 名称 | 典型能力 |
-|---:|---|---|
-| `0` | `off` | unconfigured/off |
-| `16` | `configured_idle` | bitstream retained |
-| `64` | `low_rate_filter` | 低频 filter |
-| `96` | `tile_or_roi` | tile/ROI tuple |
-| `128` | `continuous_lowfi` | 连续低功耗预处理 |
-| `192` | `debug_capture` | FIFO/raw/debug |
-
-### PowerAdapter
-
-PowerAdapter 不只是读电量。它要把整机、rail、adapter profile 和 session budget 连起来。
-
-建议字段：
-
-```text
-power_entities
-rails
-sampling_modes
-state_residency
-energy_counters
-budget_policy
-power_profile
-```
-
-PowerAdapter 自己也有功耗：高频采样、电流计、log flush 都会影响电池。采样等级需要记录。
-
-| level | 名称 | 典型能力 |
-|---:|---|---|
-| `0` | `off` | 不采样 |
-| `16` | `coarse_battery` | 低频电池/电压 |
-| `32` | `rail_summary` | 低频 rail summary |
-| `64` | `session_sample` | session 期间采样 |
-| `96` | `high_rate_probe` | 短时高频采样 |
-| `160` | `bench_fixture` | 外部量测夹具 |
-
-### StorageAdapter
-
-Storage 功耗常被忽略，但日志和 raw dump 会带来明显写放大。
-
-建议字段：
-
-```text
-storage_role: log | replay | recording | model_cache | debug_dump
-write_rate_bps
-flush_policy
-retention_policy
-power_profile
-```
-
-默认等级：
-
-| level | 名称 | 典型能力 |
-|---:|---|---|
-| `0` | `off` | 不写 |
-| `16` | `metadata_only` | session summary |
-| `32` | `event_log` | sparse event |
-| `64` | `telemetry_replay` | low-rate replay |
-| `128` | `media_record` | compressed media |
-| `192` | `raw_dump` | high-rate raw/debug |
-
-## Control Plane
-
-Control plane 负责命令、状态机、ACK、错误和能力查询。它不负责直接表达视频帧、传感器样本或大量遥测。
-
-建议将 envelope 和 command payload 分开：
-
-```text
-msg_type: command | ack | error | event | heartbeat
-payload.command.name: ping | health | start_session | stop_session | query_capability | set_policy
-```
-
-ACK 至少关联：
-
-- 原始 `msg_id`。
-- 原始 `seq`。
-- `session_id`，如果命令创建或影响 session。
-- 当前状态。
-- 是否幂等命中。
-
-错误必须结构化：
-
-```text
-code
-message
-retryable
-details
-failed_state
-related_session_id
-```
-
-## Telemetry Plane
-
-Telemetry plane 表达低功耗事件、稀疏 tuple、功耗状态、链路统计和回放数据。早期可以用 JSON 事件开发，但低功耗路径必须朝二进制 packet 收敛。
-
-第一批 payload family：
-
-| family | 对应大小系统 | 说明 |
-|---|---|---|
-| `imu_sample` | 小传感器 | 加速度、角速度、时间戳、置信度 |
-| `lowfi_vision_tile` | 小摄像机 | ROI、tile 统计、motion hint |
-| `eye_hint_tuple` | 小眼动 | pupil、blob、glint、blink、confidence |
-| `power_rail_sample` | 功耗观测 | rail、电压、电流、功率、采样源 |
-| `link_stats` | 大小链路 | RSSI、丢包、airtime、速率 |
-| `adapter_power_state` | 所有 adapter | current level、state residency、confidence |
-
-时间必须区分：
-
-- monotonic time：延迟、排序、session 统计。
-- realtime：人类日志关联。
-- source time：传感器或 M4/FPGA 提供的原始时间。
-
-## Media Plane
-
-Media plane 管理高带宽会话，不只管理 GStreamer 命令。
-
-Rich video session 的结构：
-
-```text
-source capability -> process capability -> encoder capability -> transport -> receiver
-```
-
-它可以由 `videotestsrc` 做 smoke test，但 SDK 设计上必须能表达：
-
-- rich color camera。
-- CSI/V4L2/Android camera source。
-- hardware encoder 或 software encoder。
-- RTP/UDP 或未来传输。
-- 延迟、丢帧、码率、温度和功耗指标。
-- capture 和 egress 信息量不一致的情况。
-
-Display session 是 SDC 到 endpoint 的大资源会话，不应被混进普通 control message。
-
-## Power Policy
-
-Power policy 是 SDK 的核心，不是后期附加项。
-
-建议 power mode：
-
-| mode | 允许资源 | 默认限制 |
-|---|---|---|
-| `off` | 无 | 只允许 boot/wake 入口 |
-| `ship` | 极少 rail | 不允许运行 session |
-| `sentinel` | M4、wake mic、低功耗 sensor、低 duty radio | 长时间运行，必须低 confidence 风险 |
-| `lowfi_telemetry` | lowfi camera、M4/FPGA、low-power link | 输出 event/tuple/tile |
-| `command_wake` | control link、A53 短醒 | 限时，必须回落 |
-| `rich_video` | rich camera、encoder、高速 link、SDC | session 限时，必须记录 power |
-| `display_ar` | display、GPU/compose、高速 link | 受亮度/刷新/热限制 |
-| `debug` | 任意资源 | 不作为产品默认策略 |
-
-状态转移用短图表示：
-
-```mermaid
-stateDiagram-v2
-  sentinel --> lowfi
-  lowfi --> rich
-  rich --> sentinel
-  sentinel --> wake
-  wake --> sentinel
-```
-
-图里省略错误和超时；实现必须处理 failed、degraded、recovering。
-
-## Config/Profile
-
-Profile 不应该只写 IP 和端口。它应该声明平台能力，而不是替代硬件检测。
-
-建议结构：
-
-```text
-profile_id
-role
-platform_family
-network_paths
-capabilities
-adapters
-default_policy
-measurement_sources
-validation_state
-unknowns
-```
-
-Profile 的职责：
-
-- 告诉 runtime 应该尝试装配哪些 adapter。
-- 告诉测试哪些能力只是声明、哪些已经验证。
-- 告诉上层 API 当前平台能跑哪些 session。
-- 告诉 power policy 哪些 level 是估算，哪些 level 已测。
-
-## Observability
-
-SDK 必须从一开始记录 session 级证据，而不是后期补日志。
-
-每个 session 至少记录：
-
-- request。
-- capability snapshot。
-- adapter power snapshot。
-- state transitions。
-- metrics samples。
-- errors。
-- stop reason。
-- validation result。
-
-功耗相关 metrics 建议：
-
-```text
-session_mw_avg
-session_mw_peak
-adapter_mw_avg
-adapter_level_u8
-adapter_state_residency_ms
-uj_per_event
-uj_per_frame
-bytes_per_joule
-wake_latency_ms
-settle_latency_ms
-thermal_level_u8
-confidence_level_u8
-```
-
-OpenTelemetry 的 traces、metrics、logs 分层可以作为 observability 参考，但 SDK 不需要一开始就引入完整 OTel 依赖。
-
-## 建议源码结构
-
-当前不要求立刻重构实现，但推荐目标结构如下：
+| MUST / 必须 | 不满足就不是兼容实现 |
+| SHOULD / 应该 | 默认要求；例外要写入 evidence/unknowns |
+| MAY / 可以 | 可选能力 |
+| MUST NOT / 不得 | 会破坏边界或兼容性 |
+
+## 1. 目标源码分层
 
 ```text
 src/meiso_glass/
-  core/          identity, timebase, capability, session, error
-  power/         level, dimension, budget, profile, measurement
-  control/       command, ack, error, heartbeat, state machine
-  telemetry/     packet header, payload family, replay event
-  media/         media session model, video/display/audio contracts
-  adapters/      adapter protocols and mock contracts
-  runtime/       endpoint/sdc/host composition interfaces
-  simulation/    fake endpoint, fake sdc, fake sensors
+  core/           identity, path, profile, capability, session, error, condition
+  space/          space ref, pose, relation, calibration, spatial capability
+  presentation/   view set, layer, surface, frame timing, frame stats
+  power/          level, budget, profile, cost point, measurement, policy
+  adapters/       base contract and family contracts
+  runtime/        admission, session manager, degradation, scheduler
+  control/        envelope, command, ack, error, idempotency
+  telemetry/      packet header, payload families, replay
+  evidence/       trace, validation, measurement summary
+  simulation/     fake endpoint, fake SDC, fake adapters
 ```
 
-现有实现可以逐步迁移，不需要为了目录整洁而打断当前开发。
+V0 可以不立刻重构目录，但代码结构不得反向定义 SDK 边界。public contract 必须先稳定，UDP/GStreamer/mock 只是实现之一。
 
-## 未决问题
+## 2. 通用结构
 
-这些问题不需要现在一次定稿，但必须被记录：
+### 2.1 Metadata
 
-- `power_level_u8` 是否需要跨 adapter family 可比，还是只保证同 family 内单调。
-- 128 档是否足够。如果采用 128 档，最高 bit 是否用于 `estimated/measured`、`critical` 或 `reserved`。
-- `information_level_u8` 是否应该独立成为 session 字段，还是只在 camera/radio/media 中出现。
-- 低功耗 camera 的 ROI/tile 计算放在 sensor、M4、FPGA 还是 A53，取决于真实 energy per useful event，需要测。
-- 对 OLED/LCOS/MicroLED 等不同显示技术，brightness/content/refresh 的功耗模型差异很大，SDK 只能先定义字段，不能假设统一公式。
-- Wi-Fi、BLE、LR、私有 radio 的 airtime 和 wake interval 字段可以统一，但可靠性、重传和连接维护成本需要分别建模。
-- PowerAdapter 的采样本身会耗电，采样频率和测量精度需要加入 budget。
-- 真实 rail 不一定能分辨每个 adapter 的功耗，可能只能用整机差分或 external fixture 估算。
+```yaml
+Metadata:
+  id: string
+  revision: string
+  owner_role: endpoint | sdc | host
+  device_id: string | null
+  instance_id: string | null
+  profile_id: string | null
+  created_at_realtime_ns: int | null
+  labels: map[string,string]
+```
 
-## 调研链接
+### 2.2 SemanticPath
 
-- Linux Runtime PM: https://docs.kernel.org/power/runtime_pm.html
-- Linux Energy Model: https://static.lwn.net/kerneldoc/power/energy-model.html
-- Linux Powercap: https://docs.kernel.org/power/powercap/powercap.html
-- Linux hwmon sysfs: https://www.kernel.org/doc/Documentation/hwmon/sysfs-interface
-- Zephyr Device PM: https://docs.zephyrproject.org/latest/services/pm/device.html
-- Android PowerStats HAL: https://source.android.com/docs/core/power/power-stats-hal
-- V4L2 frame intervals: https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-enum-frameintervals.html
-- W3C Media Capture: https://www.w3.org/TR/mediacapture-streams/
-- MIPI CSI-2: https://www.mipi.org/specifications/csi-2
-- MIPI DSI-2: https://www.mipi.org/specifications/dsi-2
-- Android refresh rate guidance: https://developer.android.com/games/optimize/display-refresh-rate-change
-- Silicon Labs BLE current consumption guide: https://docs.silabs.com/bluetooth/6.2.0/bluetooth-fundamentals-system-performance/current-consumption
-- OpenTelemetry specification: https://opentelemetry.io/docs/specs/otel/
+Meiso 使用语义路径命名 capability、space、profile、surface、policy：
+
+```text
+/cap/camera/world/lowfi
+/cap/display/primary/mono
+/space/display/primary
+/surface/hud/main
+/policy/product/default
+```
+
+规则：
+
+- public contract 使用语义路径。
+- adapter 内部可以记录 `/dev/video0`、socket、I2C addr，但不能作为 public identity。
+- 路径必须稳定，重命名需要 revision。
+
+### 2.3 Condition
+
+```yaml
+Condition:
+  type: Ready | Admitted | Running | Degraded | Blocked | PowerConstrained | LinkConstrained | ThermalConstrained | Measuring
+  status: true | false | unknown
+  reason: string
+  message: string
+  observed_generation: int
+  last_transition_time_ns: int
+```
+
+Condition 用于异步状态，不替代 session state。
+
+### 2.4 StructuredError
+
+```yaml
+StructuredError:
+  code: string
+  message: string
+  retryable: bool
+  severity: info | warning | error | fatal
+  related_session_id: string | null
+  related_capability_id: string | null
+  failed_state: string | null
+  details: map
+```
+
+错误码必须稳定，不能把 Python exception 或驱动日志原样暴露为 public API。
+
+## 3. Core domain contract
+
+### 3.1 SystemProfile
+
+```yaml
+SystemProfile:
+  metadata: Metadata
+  spec:
+    role: endpoint | sdc | host
+    platform_family: string
+    capabilities: list[CapabilityRef]
+    adapter_bindings: list[AdapterBinding]
+    default_policy_ref: string
+    network_paths: list[NetworkPath]
+    measurement_sources: list[string]
+    extension_slots: list[ExtensionSlot]
+  status:
+    validation_state: declared | mocked | detected | smoke_tested | measured | blocked
+    available_capabilities: list[string]
+    blocked_capabilities: list[string]
+    conditions: list[Condition]
+  evidence:
+    unknowns: list[string]
+    validation_results: list[ValidationResult]
+```
+
+Profile 的职责是装配，不是业务逻辑。Profile 可以声明 future slot，但 `declared` slot 不可被 runtime admission 当成可用能力。
+
+### 3.2 Capability
+
+```yaml
+Capability:
+  metadata: Metadata
+  spec:
+    family: camera | display | presentation | audio | radio | sensor | compute | power | storage | spatial | debug
+    role_owner: endpoint | sdc | host
+    resource_tier: ResourceTier
+    output_forms: list[string]
+    required_spaces: list[string]
+    dependencies: list[string]
+    limits: map
+    power_profile_ref: string | null
+    quality_profile: map
+    latency_profile: map
+    privacy_class: none | low | medium | high
+  status:
+    availability: available | unavailable | degraded | blocked
+    validation_state: declared | mocked | detected | smoke_tested | measured | blocked
+    current_level_u8: int | null
+    conditions: list[Condition]
+  evidence:
+    measurement_source: string
+    confidence_level_u8: int
+    last_validated_at_ns: int | null
+    unknowns: list[string]
+```
+
+Capability MUST 是 SDK 判断“能不能做某事”的唯一入口。Adapter 不能绕过 capability 直接接受上层请求。
+
+### 3.3 ResourceTier
+
+```yaml
+ResourceTier:
+  compute: none | sentinel | low_power_helper | app_cpu | sdc_ai | debug
+  vision: none | lowfi | eye_hint | rich | depth_future | calibration
+  audio: none | wake | voice_hint | capture | array | debug
+  display: none | status | hud | interactive | video | calibration
+  link: none | low_power_control | telemetry | high_bandwidth_rx | high_bandwidth_tx | debug
+  payload: none | event | tuple | tile | compressed_stream | raw
+```
+
+ResourceTier 只描述功耗/调度层级，不描述具体硬件型号。
+
+### 3.4 Session
+
+```yaml
+Session:
+  metadata: Metadata
+  request:
+    idempotency_key: string
+    requester_role: endpoint | sdc | host
+    intent: string
+    priority: background | normal | user_visible | critical | debug
+  spec:
+    session_type: lowfi_sensing | eye_hint | rich_video | presentation | audio_capture | spatial_query | power_measurement | debug_capture
+    requested_capabilities: list[string]
+    required_spaces: list[string]
+    power_budget: PowerBudget
+    quality_budget: map
+    information_budget: map
+    allowed_degradation: list[string]
+  status:
+    state: proposed | admitted | rejected | starting | running | degraded | recovering | stopping | stopped | failed
+    selected_capabilities: list[string]
+    selected_power_levels: map[string,int]
+    selected_plan: map
+    degradation_reason: string | null
+    conditions: list[Condition]
+  evidence:
+    admission_trace: list[AdmissionStep]
+    state_transitions: list[StateTransition]
+    metrics_summary: map
+    power_summary: map | null
+    errors: list[StructuredError]
+```
+
+所有非瞬时操作 MUST 是 session。Session request、selected plan、真实 status 必须分开。
+
+## 4. Space / Spatial contract
+
+### 4.1 SpaceRef
+
+```yaml
+SpaceRef:
+  space_id: string
+  kind: head | display | camera | eye | world | local | sdc_world | sensor | unknown
+  owner_role: endpoint | sdc | host
+  persistence: session | boot | factory | product
+```
+
+建议保留的基础 space：
+
+```text
+/space/head
+/space/display/primary
+/space/camera/world_lowfi
+/space/camera/world_rich
+/space/camera/eye_primary
+/space/sdc/world
+/space/local
+```
+
+### 4.2 Pose and SpaceRelation
+
+```yaml
+Pose:
+  position_m: [number, number, number]
+  orientation_xyzw: [number, number, number, number]
+```
+
+```yaml
+SpaceRelation:
+  from: string
+  to: string
+  timestamp_ns: int
+  timebase: monotonic | source | realtime
+  pose: Pose
+  linear_velocity_mps: [number, number, number] | null
+  angular_velocity_radps: [number, number, number] | null
+  validity: valid | estimated | unavailable
+  confidence_level_u8: int
+  source: declared_only | factory_calibration | runtime_tracking | sdc_fusion | mock
+```
+
+V0 可以只支持 declared/factory calibration，但 schema 必须存在。
+
+### 4.3 SensorSlot
+
+```yaml
+SensorSlot:
+  slot_id: string
+  sensor_role: world | eye | depth | ir | event | imu | mic | wear | calibration | debug
+  capture_modality: mono | rgb | rgbir | ir | event | depth_tof | structured_light | stereo_pair | imu | audio | unknown
+  mounted_space: string
+  owner_role: endpoint | sdc | host
+  validation_state: declared | mocked | detected | smoke_tested | measured | blocked
+```
+
+Future depth camera、stereo pair、IR、event camera 先进入 SensorSlot，不写具体 adapter。
+
+### 4.4 SpatialCapability
+
+```yaml
+SpatialCapability:
+  metadata: Metadata
+  spec:
+    spatial_role: pose | gaze | depth | occlusion | hit_test | anchor | mesh | scene_semantics | calibration
+    source_slots: list[string]
+    output_forms: list[pose | ray | depth_map | confidence_map | point_cloud | plane | mesh | anchor | hit_result | semantic_label]
+    coordinate_space: string
+    update_rate_hz: number | null
+    privacy_class: none | low | medium | high
+  status:
+    validation_state: declared | mocked | detected | smoke_tested | measured | blocked
+    availability: available | unavailable | degraded | blocked
+  evidence:
+    confidence_level_u8: int
+    unknowns: list[string]
+```
+
+## 5. Presentation contract
+
+### 5.1 ViewSet
+
+```yaml
+ViewSet:
+  viewset_id: string
+  topology: mono | stereo | multiview | three_d
+  views: list[ViewSlot]
+  stereo_mode: none | side_by_side | dual_surface | time_multiplexed | optical_engine_specific
+  depth_composition: unsupported | declared | supported | measured
+```
+
+```yaml
+ViewSlot:
+  view_id: string
+  eye: none | left | right | both | other
+  display_space: string
+  viewport: [int, int, int, int] | profile_declared
+  recommended_resolution: [int, int] | null
+  supported_refresh_hz: list[number]
+  projection_kind: profile_declared | pinhole | optical_engine_specific
+  fov_hint: map | null
+```
+
+规则：
+
+- Mono V0 是 profile，不是 core 假设。
+- Stereo/multiview/3D 通过 ViewSet 扩展。
+- ViewSlot 不绑定 shader 或 graphics API。
+
+### 5.2 PresentationSurface
+
+```yaml
+PresentationSurface:
+  surface_id: string
+  producer_role: endpoint | sdc | host
+  kind: local_buffer | sdc_stream | video_stream | static_asset | diagnostic
+  format_hint: rgba | yuv | compressed_video | opaque_handle | unknown
+  size_px: [int, int] | null
+  max_update_hz: number | null
+  transport_ref: string | null
+```
+
+它是 OpenXR swapchain 思路的轻量版。V0 不要求实现真正 swapchain，只要求能表达“谁生产了什么 surface，给哪个 layer 用”。
+
+### 5.3 PresentationLayer
+
+```yaml
+PresentationLayer:
+  layer_id: string
+  layer_type: status | hud | ar_overlay | video | calibration | depth_mask | passthrough_hint | debug
+  target_views: list[string]
+  surface_ref: string
+  composition:
+    order: int
+    alpha_mode: opaque | premultiplied | additive
+    space: string
+    pose_in_space: Pose | null
+  constraints:
+    max_latency_ms: number | null
+    min_refresh_hz: number | null
+    allow_drop: bool
+  power_hints:
+    allow_refresh_degrade: bool
+    allow_brightness_cap: bool
+    allow_viewport_scale: bool
+    allow_layer_disable: bool
+```
+
+Layer 是 SDK core；渲染 layer 内容的方式不是 SDK core。
+
+### 5.4 PresentationSessionSpec
+
+```yaml
+PresentationSessionSpec:
+  viewset_ref: string
+  layers: list[PresentationLayer]
+  frame_timing_policy:
+    target_refresh_hz: number
+    max_frame_latency_ms: number
+    allow_frame_skip: bool
+  display_policy:
+    brightness_mode: auto | capped | fixed
+    max_brightness_pct: int | null
+    content_update_region: full | partial | sparse
+  degradation_order:
+    - disable_debug_layer
+    - reduce_refresh
+    - scale_viewport
+    - disable_video_layer
+    - mono_only
+```
+
+### 5.5 FrameTiming and FrameStats
+
+```yaml
+FrameTiming:
+  frame_index: int
+  predicted_display_time_ns: int
+  deadline_ns: int
+  submitted_time_ns: int | null
+  displayed_time_ns: int | null
+  missed_deadline: bool
+  drop_reason: none | late | power_policy | link_congestion | adapter_busy
+```
+
+```yaml
+PresentationFrameStats:
+  session_id: string
+  frames_submitted: int
+  frames_displayed: int
+  frames_dropped: int
+  avg_latency_ms: number | null
+  p95_latency_ms: number | null
+  refresh_hz_observed: number | null
+  selected_brightness_pct: int | null
+  selected_viewport_scale: number | null
+```
+
+## 6. Power contract
+
+### 6.1 PowerBudget
+
+```yaml
+PowerBudget:
+  budget_id: string | null
+  max_avg_mw: number | null
+  max_peak_mw: number | null
+  max_thermal_risk_u8: int | null
+  max_wake_latency_ms: number | null
+  max_session_duration_ms: int | null
+  max_airtime_ms_per_s: number | null
+  policy: conservative | balanced | performance | debug
+```
+
+Budget 是请求侧约束，不是测量结果。
+
+### 6.2 PowerLevel
+
+```yaml
+PowerLevel:
+  scheme: u8
+  value: int  # 0..255
+  band: off | retention | wake_ready | sentinel | sparse_capture | local_process | low_stream | rich_stream | peak_stream | debug_boost
+```
+
+Level 只在同一个 adapter/family 内做强排序；跨 family 只能粗略比较。
+
+### 6.3 PowerProfile
+
+```yaml
+PowerProfile:
+  profile_id: string
+  adapter_id: string
+  family: string
+  supported_levels: list[int]
+  default_level: int
+  cost_points: list[PowerCostPoint]
+  transitions: list[PowerTransition]
+  unknowns: list[string]
+```
+
+### 6.4 PowerCostPoint
+
+```yaml
+PowerCostPoint:
+  level: int
+  adapter_state: off | retention | idle | active | suspended | debug
+  settings: map
+  expected_mw: number | null
+  peak_mw: number | null
+  thermal_risk_u8: int
+  wake_latency_ms: number | null
+  settle_latency_ms: number | null
+  unit_cost:
+    uj_per_event: number | null
+    uj_per_frame: number | null
+    bytes_per_joule: number | null
+  measurement_source: declared_only | datasheet_estimate | driver_counter | os_powerstats | rail_probe | bench_fixture | product_calibrated
+  confidence_level_u8: int
+```
+
+V0 只要求少量 supported levels，例如 `[0, 32, 64, 128, 160]`。
+
+### 6.5 PowerTransition
+
+```yaml
+PowerTransition:
+  from_level: int
+  to_level: int
+  wake_latency_ms_typ: number | null
+  wake_latency_ms_max: number | null
+  settle_latency_ms_typ: number | null
+  requires: list[string]
+  forbidden_when: list[string]
+```
+
+### 6.6 MeasuredPowerPoint
+
+```yaml
+MeasuredPowerPoint:
+  point_id: string
+  adapter_id: string
+  session_id: string | null
+  rail_id: string | null
+  level: int
+  settings: map
+  mw_avg: number | null
+  mw_peak: number | null
+  uj_per_event: number | null
+  uj_per_frame: number | null
+  sample_window_ms: int
+  measurement_source: declared_only | datasheet_estimate | driver_counter | os_powerstats | rail_probe | bench_fixture | product_calibrated
+  confidence_level_u8: int
+```
+
+功耗数据必须带 source 和 confidence。低 confidence 数据不能进入精细自动调度，只能用于保守 admission 或人工分析。
+
+## 7. Adapter contract
+
+### 7.1 Base Adapter
+
+```yaml
+AdapterContract:
+  adapter_id: string
+  family: string
+  owner_role: endpoint | sdc | host
+  provides_capabilities(): list[Capability]
+  probe(): AdapterProbeResult
+  get_status(): AdapterStatus
+  get_power_profile(): PowerProfile
+  start_session(plan): AdapterStartResult
+  stop_session(session_id, reason): AdapterStopResult
+  validate(): ValidationResult
+```
+
+所有 adapter MUST：
+
+- 声明 capability。
+- 声明 power profile。
+- 返回 structured status。
+- 返回 structured error。
+- 支持 mock contract test。
+
+### 7.2 AdapterStatus
+
+```yaml
+AdapterStatus:
+  adapter_id: string
+  availability: available | unavailable | degraded | blocked
+  current_level_u8: int | null
+  busy: bool
+  active_sessions: list[string]
+  conditions: list[Condition]
+  last_error: StructuredError | null
+  evidence_ref: string | null
+```
+
+### 7.3 CameraAdapter
+
+CameraAdapter 负责 image/media/sparse vision source，不负责空间融合。
+
+```yaml
+CameraCapabilitySpec:
+  sensor_role: wake | lowfi | eye_hint | world_rich | calibration | debug | future_depth
+  capture_modality: mono | rgb | rgbir | ir | event | depth_tof | structured_light | stereo_pair | unknown
+  pixel_formats: list[string]
+  frame_sizes: list[[int,int]]
+  frame_intervals: list[number]
+  crop_modes: list[string]
+  binning_modes: list[string]
+  roi_modes: list[string]
+  output_forms: event | tuple | tile | compressed_stream | raw_frame
+  mounted_space: string
+  privacy_class: none | low | medium | high
+```
+
+Camera-specific cost detail MAY include：
+
+```yaml
+camera_cost_detail:
+  capture_level_u8: int
+  process_level_u8: int
+  egress_level_u8: int
+  information_level_u8: int
+```
+
+规则：
+
+- 高 capture 不等于高 egress。
+- 高 information 不等于高 byte rate。
+- Eye hint 输出默认是 camera-space sparse tuple，不是 screen-space gaze final。
+- Depth/future camera 不在 V0 写 adapter，只写 SensorSlot/SpatialCapability。
+
+### 7.4 DisplayAdapter
+
+DisplayAdapter 只负责面板和显示链路。
+
+```yaml
+DisplayCapabilitySpec:
+  display_role: status | hud | ar | debug
+  display_space: string
+  resolution: [int,int]
+  supported_refresh_hz: list[number]
+  brightness_range_pct: [int,int]
+  supports_partial_update: bool | unknown
+  supports_low_refresh: bool | unknown
+  link_type: dsi | spi | parallel | internal | unknown
+```
+
+DisplayAdapter 不负责 layer 排序、view topology 或 render engine。
+
+### 7.5 PresentationPort
+
+PresentationPort 不是 RenderAdapter。它是 runtime 和 display/media/link 之间的呈现 contract 执行口。
+
+```yaml
+PresentationPort:
+  supports_viewsets: list[string]
+  supports_layer_types: list[string]
+  supports_surface_kinds: list[string]
+  max_layers: int
+  max_surfaces: int
+  frame_timing_source: endpoint | sdc | display_adapter | mock
+```
+
+V0 可先做 mock，真实实现后接 display path。
+
+### 7.6 RadioLinkAdapter
+
+```yaml
+RadioCapabilitySpec:
+  link_role: low_power_control | telemetry_tx | media_rx | media_tx | debug
+  phy: lr2021 | ble | wifi | ethernet | usb | unknown
+  direction: tx | rx | bidirectional
+  payload_budget_bps: number | null
+  airtime_budget_ms_per_s: number | null
+  wake_interval_ms: number | null
+  tx_power_dbm: number | null
+  retry_policy: map
+```
+
+Radio power 主要看 airtime、TX power、wake interval、监听窗口、重传和 payload，不看协议名。
+
+### 7.7 SensorAdapter
+
+```yaml
+SensorCapabilitySpec:
+  sensor_role: imu | mic_wake | mic_capture | wear | als | prox | temp | touch | gnss | debug
+  output_forms: event | sample | tuple | stream
+  sample_rates_hz: list[number]
+  mounted_space: string | null
+  power_profile_ref: string
+```
+
+### 7.8 ComputeBridge：M4 / FPGA / helper
+
+```yaml
+ComputeBridgeSpec:
+  bridge_role: wake | sensor_hub | fpga_control | lowfi_vision | packet_filter | timing | debug
+  compute_tier: sentinel | low_power_helper | app_cpu | sdc_ai
+  input_forms: list[string]
+  output_forms: list[string]
+  mailbox_rate_hz: number | null
+  shared_memory_bytes: int | null
+  firmware_state: unknown | loaded | running | blocked
+```
+
+M4/GW1NZ 的存在进入 adapter/profile，不进入 core enum。
+
+### 7.9 PowerAdapter
+
+```yaml
+PowerAdapterSpec:
+  power_entities: list[string]
+  rails: list[string]
+  sampling_modes: coarse | session | high_rate | bench_fixture
+  supports_state_residency: bool
+  supports_energy_counter: bool
+```
+
+PowerAdapter 自己也耗电，高频采样必须进入 session budget。
+
+### 7.10 StorageAdapter
+
+```yaml
+StorageCapabilitySpec:
+  storage_role: log | replay | recording | model_cache | debug_dump
+  write_rate_bps: number | null
+  flush_policy: immediate | interval | session_end | manual
+  retention_policy: volatile | session | persistent | debug_only
+```
+
+## 8. Runtime admission
+
+Admission 输入：
+
+```yaml
+AdmissionRequest:
+  session_spec: Session.spec
+  current_system_status: map
+  profile_snapshot: SystemProfile
+  policy_ref: string
+```
+
+Admission 步骤 MUST 记录：
+
+1. capability 是否存在。
+2. validation_state 是否足够。
+3. dependencies 是否满足。
+4. resource_tier 是否被当前 power mode 允许。
+5. link/airtime 是否足够。
+6. display/presentation view/layer/refresh 是否可执行。
+7. power budget 是否足够。
+8. 是否需要降级。
+9. 选择哪些 adapter 和 power level。
+
+```yaml
+AdmissionStep:
+  step: string
+  result: pass | fail | degraded | skipped
+  reason: string
+  evidence_ref: string | null
+```
+
+## 9. Control plane
+
+### 9.1 Envelope
+
+```yaml
+ControlEnvelope:
+  version: 1
+  msg_id: string
+  seq: int
+  time_ns: int
+  source_role: endpoint | sdc | host
+  target_role: endpoint | sdc | host
+  msg_type: command | ack | error | event | heartbeat
+  payload: map
+```
+
+### 9.2 Commands
+
+V0 commands：
+
+```text
+ping
+query_system_profile
+query_capabilities
+propose_session
+start_session
+stop_session
+get_session_status
+set_policy
+subscribe_telemetry
+get_evidence
+```
+
+`start_session` MUST 支持 idempotency key。重复请求不能重复启动硬件。
+
+### 9.3 ACK
+
+```yaml
+AckPayload:
+  request_msg_id: string
+  ok: bool
+  session_id: string | null
+  state: string | null
+  idempotency_hit: bool
+  selected_plan: map | null
+  warnings: list[StructuredError]
+```
+
+## 10. Telemetry plane
+
+第一批 payload family：
+
+| family | 用途 |
+|---|---|
+| `imu_sample` | 小传感器运动样本 |
+| `lowfi_vision_tuple` | ROI/tile/motion hint |
+| `eye_hint_tuple` | pupil/blob/glint/blink/confidence |
+| `space_relation_sample` | space 间 pose 关系 |
+| `presentation_frame_stats` | frame timing/drop/latency/refresh |
+| `adapter_power_state` | adapter current level/state/confidence |
+| `power_rail_sample` | rail voltage/current/power |
+| `link_stats` | RSSI/packet loss/airtime/rate |
+| `session_event` | state transition/degradation/error |
+
+时间字段必须区分：
+
+```text
+monotonic_time_ns  # 排序/延迟/session 统计
+source_time_ns     # 传感器/M4/FPGA 原始时间
+realtime_ns        # 人类日志关联
+```
+
+## 11. Evidence / observability
+
+每个 session 至少记录：
+
+```yaml
+SessionEvidence:
+  session_id: string
+  request_snapshot: map
+  capability_snapshot: list[Capability]
+  admission_trace: list[AdmissionStep]
+  selected_plan: map
+  adapter_status_start: list[AdapterStatus]
+  adapter_status_end: list[AdapterStatus]
+  telemetry_summary: map
+  power_summary: map | null
+  errors: list[StructuredError]
+  stop_reason: string
+```
+
+Evidence 是 Meiso SDK 的核心资产：它让调度、功耗、质量和硬件实验可以被回放，而不是靠口头判断。
+
+## 12. V0 profile examples
+
+### 12.1 Endpoint mono display profile
+
+```yaml
+ViewSet:
+  viewset_id: /viewset/endpoint/mono_primary
+  topology: mono
+  views:
+    - view_id: primary
+      eye: none
+      display_space: /space/display/primary
+      viewport: profile_declared
+      recommended_resolution: null
+      supported_refresh_hz: [30, 60]
+      projection_kind: profile_declared
+  stereo_mode: none
+  depth_composition: unsupported
+```
+
+### 12.2 Future stereo/depth declared slots
+
+```yaml
+ExtensionSlot:
+  slot_id: /slot/display/stereo_future
+  kind: viewset
+  validation_state: declared
+  usable_for_admission: false
+```
+
+```yaml
+ExtensionSlot:
+  slot_id: /slot/camera/depth_front_future
+  kind: sensor
+  validation_state: declared
+  usable_for_admission: false
+```
+
+## 13. Contract tests
+
+V0 必须先写这些测试：
+
+| Test | 目的 |
+|---|---|
+| schema roundtrip | 所有 core object 可序列化/反序列化 |
+| invalid field rejection | 缺关键字段或错 enum 会失败 |
+| session state machine | 非法状态迁移会失败 |
+| idempotency | 重复 start 不重复启动 |
+| adapter contract | mock 和 real adapter 同一测试套 |
+| power admission | 预算不足会 reject/degrade |
+| presentation admission | view/layer/refresh 不满足会 reject/degrade |
+| declared slot safety | `declared` future depth/stereo 不能被当成可用 |
+| evidence completeness | session 停止后有 evidence |
+
+## 14. 当前明确不做
+
+- 不做完整 OpenXR bridge。
+- 不做 RenderAdapter。
+- 不做 DepthCameraAdapter。
+- 不做 full controller action map。
+- 不做 anchors/hit-test/mesh public API。
+- 不做 graphics API binding。
+- 不做 shader/material/scene graph。
+- 不把硬件 bring-up 脚本放进 core。
