@@ -19,6 +19,8 @@ node_modules/
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
+docs/.vitepress/cache/
+docs/.vitepress/dist/
 
 # Build and logs
 build/
@@ -29,6 +31,8 @@ logs/
 # Local SDK bible update packages
 docs/SDK/bible/meiso_sdk_bible_updated*/
 docs/SDK/bible/meiso_sdk_bible_updated*.zip
+docs/SDK/bible/meiso_sdk_bible_final*/
+docs/SDK/bible/meiso_sdk_bible_FINAL*.zip
 
 # Local secrets
 .env

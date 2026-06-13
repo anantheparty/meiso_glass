@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Meiso Glass">
+  <rect width="48" height="48" rx="10" fill="#0f172a"/>
+  <path d="M9 25c3-6 8-9 15-9s12 3 15 9c-3 6-8 9-15 9S12 31 9 25Z" fill="none" stroke="#5eead4" stroke-width="3"/>
+  <circle cx="24" cy="25" r="5" fill="#14b8a6"/>
+</svg>

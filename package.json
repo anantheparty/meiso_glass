@@ -1,0 +1,16 @@
+{
+  "name": "meiso-glass-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev docs --host 127.0.0.1",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs --host 127.0.0.1"
+  },
+  "devDependencies": {
+    "debug": "^4.4.3",
+    "mermaid": "^11.15.0",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-mermaid": "^2.0.17"
+  }
+}

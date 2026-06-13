@@ -41,6 +41,16 @@ meiso-send --host 127.0.0.1 --port 42001 ping
 meiso-send --host 127.0.0.1 --port 42001 health
 ```
 
+## 本地 Wiki
+
+本仓库使用 VitePress 维护 `docs/` 下的 Web wiki。它只用于本地预览和静态构建验证，不包含部署配置。
+
+```bash
+npm install
+npm run docs:dev
+npm run docs:build
+```
+
 ## 项目结构
 
 ```text
@@ -48,7 +58,7 @@ src/meiso_glass/        SDK 包
 configs/examples/       平台中立示例配置
 configs/platforms/      板卡专用上电调试 profile
 scripts/                可移植的开发/探针/视频冒烟脚本
-docs/                   origin 原始文档、SDK 三份核心设计文档与真机验证计划
+docs/                   Web wiki、origin 原始文档、SDK 三份核心设计文档与真机验证计划
 systemd/                通用 service 模板
 tests/                  聚焦 SDK 契约的测试
 ```
