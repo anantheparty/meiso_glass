@@ -13,7 +13,7 @@ _CRC = struct.Struct("!H")
 class TelemetryPacketType(IntEnum):
     IMU = 1
     MOTION = 2
-    LOWFI_VISION = 3
+    LOCAL_RESULT = 3
     EYE_HINT = 4
     POWER_STATE = 5
     THERMAL_STATE = 6
@@ -57,7 +57,7 @@ class TelemetryPacket:
         return body + _CRC.pack(crc16_ccitt(body))
 
     @staticmethod
-    def decode(data: bytes) -> "TelemetryPacket":
+    def decode(data: bytes) -> TelemetryPacket:
         min_len = _HEADER.size + _CRC.size
         if len(data) < min_len:
             raise ValueError("telemetry packet too short")
@@ -72,7 +72,7 @@ class TelemetryPacket:
             raise ValueError("unsupported telemetry version")
         payload = data[_HEADER.size : _HEADER.size + payload_len]
         expected_crc = _CRC.unpack(data[-_CRC.size :])[0]
-        actual_crc = crc16_ccitt(data[:-_CRC.size])
+        actual_crc = crc16_ccitt(data[: -_CRC.size])
         if expected_crc != actual_crc:
             raise ValueError("invalid telemetry crc")
         return TelemetryPacket(

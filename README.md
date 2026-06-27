@@ -1,23 +1,24 @@
 # Meiso Glass
 
-Meiso Glass 是一个面向 AR 眼镜端侧设备和 SDC 设备的平台中立 SDK 骨架。
+Meiso Glass 是一个面向双设备 AR 系统的 Meiso Host/Edge SDK 骨架。
 
-这个仓库刻意把开放 SDK 契约和任何单一原型平台分开。i.MX 8M Mini、Jetson Orin Nano、LR2021、HM0360 等器件可以作为平台配置 profile 或 adapter 出现，但 SDK 核心应当能被其它 Linux SBC、自定义端侧板、模拟设备以及未来的视频/无线传输方案复用。
+Host 负责业务逻辑、AI、物理、场景权威状态和资产生产。Edge 负责设备控制、数据采集、本地追踪、轻量渲染、显示和功耗管理。两者通过 Meiso Protocol 通信，不传 OpenGL 命令，不传引擎内部对象。
 
 ## 当前范围
 
-- 控制面：基于 UDP JSON 的 `heartbeat`、`health`、命令、ACK、错误和事件消息。
-- 视频冒烟测试：基于 GStreamer 的 H.264/RTP/UDP，默认使用 `videotestsrc`。
-- 健康探针：采集 OS、网络、存储、视频设备以及可选平台提示信息。
-- 配置 profile：优先提供通用 Linux 示例；板卡专用配置放在 `configs/platforms/`。
-- 运行时角色：`endpoint` 表示眼镜侧设备，`sdc` 表示口袋/主机侧空间数据计算设备，`host` 表示开发工具。
+- Meiso Protocol：versioned header、logical channel、payload length 校验。
+- Host SDK：Device、Scene、HUD、Sensor、Telemetry API。
+- Edge Runtime：FeatureRequest lease、Scene Replica、HUD 合成顺序、Frame Scheduler contract。
+- Render Profile 0：OpenGL ES 2.0 的最小可移植渲染约束。
+- Mock 和 reference path：用于本机开发，不定义最终硬件绑定。
 
 ## 安装
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
 ```
 
 ## 本地冒烟测试
@@ -25,20 +26,26 @@ pip install -e ".[dev]"
 终端 A：
 
 ```bash
-meiso-sdc --config configs/examples/sdc.generic.yaml
+meiso host --config configs/examples/host.generic.yaml
 ```
 
 终端 B：
 
 ```bash
-meiso-endpoint --config configs/examples/endpoint.generic.yaml
+meiso edge --config configs/examples/edge.generic.yaml
 ```
 
 终端 C：
 
 ```bash
-meiso-send --host 127.0.0.1 --port 42001 ping
-meiso-send --host 127.0.0.1 --port 42001 health
+meiso send \
+  --host 127.0.0.1 \
+  --port 42001 \
+  --session-id session-dev \
+  --feature camera \
+  --mode stream \
+  --request-id req-camera-001 \
+  --lease-ms 5000
 ```
 
 ## 本地 Wiki
@@ -58,28 +65,23 @@ src/meiso_glass/        SDK 包
 configs/examples/       平台中立示例配置
 configs/platforms/      板卡专用上电调试 profile
 scripts/                可移植的开发/探针/视频冒烟脚本
-docs/                   Web wiki、origin 原始文档、SDK 三份核心设计文档与真机验证计划
+docs/                   Web wiki、唯一 bible、API spec、标准、开发和 CI/CD 文档
 systemd/                通用 service 模板
 tests/                  聚焦 SDK 契约的测试
 ```
 
-应用层代码可以先使用 `meiso_glass.api.EndpointClient` 和 `meiso_glass.api.SDCRegistry`，不必直接手写 UDP 消息。
+应用层代码优先使用 `meiso_glass.api.MeisoHost`，不要直接手写 wire header。
 
 ## 文档
 
 - [文档索引](docs/README.md)
 - [SDK 文档索引](docs/SDK/README.md)
-- [SDK 设计概览与核心设计图](docs/SDK/bible/SDK_DESIGN_OVERVIEW.md)
-- [SDK 子系统详细设计案](docs/SDK/bible/SDK_SUBSYSTEM_DESIGN.md)
-- [SDK 开发计划与当前进度](docs/SDK/bible/SDK_DEVELOPMENT_PLAN.md)
-- [真机验证计划](docs/validation/README.md)
+- [唯一 SDK bible](docs/SDK/bible/SDK_DESIGN_OVERVIEW.md)
+- [API Spec](docs/api/spec.md)
+- [Coding Standard](docs/standards/coding-standard.md)
+- [Development Environment](docs/development/environment.md)
+- [CI/CD](docs/ci-cd/README.md)
 
 ## 硬件上下文
 
-当前实验室候选硬件是 bring-up 目标，不是 SDK 约束：
-
-- endpoint 上电调试：i.MX 8M Mini 开发板
-- 低功耗端侧外设：HM0360、GW1NZ-2、LR2021、nRF54L15、ICM-45686、T5838
-- SDC 上电调试：Jetson Orin Nano / Orin NX 类计算设备
-
-SDK 核心应当保持在协议、传输、视频、遥测和能力抽象之后，让这些硬件后续可以被开放生态里的替代方案替换。
+实验室候选硬件是 bring-up 目标，不是 SDK 约束。硬件差异必须通过 adapter、profile 和 validation evidence 表达，不能进入核心 API。

@@ -16,49 +16,53 @@ export default withMermaid(defineConfig({
       provider: 'local'
     },
     nav: [
-      { text: 'Guide', link: '/guide/introduction' },
-      { text: 'SDK Bible', link: '/SDK/bible/SDK_DESIGN_OVERVIEW' },
-      { text: 'Validation', link: '/validation/' },
-      { text: 'Origin', link: '/origin/' }
+      { text: 'Bible', link: '/SDK/bible/SDK_DESIGN_OVERVIEW' },
+      { text: 'API Spec', link: '/api/spec' },
+      { text: 'Standards', link: '/standards/coding-standard' },
+      { text: 'Development', link: '/development/environment' },
+      { text: 'CI/CD', link: '/ci-cd/' }
     ],
     sidebar: {
-      '/guide/': [
-        {
-          text: 'Guide',
-          items: [
-            { text: 'Introduction', link: '/guide/introduction' },
-            { text: 'Architecture Map', link: '/guide/architecture-map' },
-            { text: 'Diagram Rendering', link: '/guide/diagram-rendering' },
-            { text: 'Maintenance Loop', link: '/guide/maintenance-loop' }
-          ]
-        }
-      ],
       '/SDK/': [
         {
-          text: 'SDK Bible',
+          text: 'Bible',
           items: [
             { text: 'SDK Index', link: '/SDK/' },
-            { text: 'Design Overview', link: '/SDK/bible/SDK_DESIGN_OVERVIEW' },
-            { text: 'Subsystem Design', link: '/SDK/bible/SDK_SUBSYSTEM_DESIGN' },
-            { text: 'Development Plan', link: '/SDK/bible/SDK_DEVELOPMENT_PLAN' }
+            { text: 'Design Overview', link: '/SDK/bible/SDK_DESIGN_OVERVIEW' }
           ]
         }
       ],
-      '/validation/': [
+      '/api/': [
         {
-          text: 'Validation',
+          text: 'API',
           items: [
-            { text: 'Validation Plan', link: '/validation/' }
+            { text: 'Spec', link: '/api/spec' }
           ]
         }
       ],
-      '/origin/': [
+      '/standards/': [
         {
-          text: 'Origin',
+          text: 'Standards',
           items: [
-            { text: 'Origin Index', link: '/origin/' },
-            { text: 'Hardware Sketch', link: '/origin/dev_hardware_sketch' },
-            { text: 'Peripheral Validation Board', link: '/origin/endpoint_peripheral_validation_board' }
+            { text: 'Coding Standard', link: '/standards/coding-standard' }
+          ]
+        }
+      ],
+      '/development/': [
+        {
+          text: 'Development',
+          items: [
+            { text: 'Environment', link: '/development/environment' },
+            { text: 'Local Smoke Tests', link: '/development/local-smoke-tests' },
+            { text: 'Hardware Validation', link: '/development/hardware-validation' }
+          ]
+        }
+      ],
+      '/ci-cd/': [
+        {
+          text: 'CI/CD',
+          items: [
+            { text: 'Gates', link: '/ci-cd/' }
           ]
         }
       ]

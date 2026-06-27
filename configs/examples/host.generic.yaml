@@ -1,0 +1,23 @@
+device:
+  id: host-dev-001
+  role: host
+  platform: generic-linux
+
+network:
+  bind_host: 0.0.0.0
+  heartbeat_port: 42000
+  control_port: 42002
+  peer_host: 127.0.0.1
+
+channels:
+  high_reliable_port: 42002
+  latest_wins_port: 42003
+  low_reliable_port: 42004
+  low_power_port: 42005
+
+video:
+  port: 5000
+  decoder: avdec_h264 ! videoconvert ! autovideosink sync=false
+
+logging:
+  dir: ./logs

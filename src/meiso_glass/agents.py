@@ -6,90 +6,77 @@ import time
 from typing import Any
 
 from .config import SDKConfig
+from .features import FeatureRequest
 from .health import collect_health
 from .logging_utils import setup_logging
-from .messages import Message, MessageType, Role, ack_for
+from .protocol import MeisoChannel, MeisoMessage, MeisoMessageType
+from .runtime.edge import MeisoEdgeRuntime
 from .transport.udp import UDPTransport
-from .video.gstreamer import GStreamerProcess, testsrc_h264_rtp_sender_command
 
 
-class EndpointAgent:
+class EdgeAgent:
     def __init__(self, cfg: SDKConfig) -> None:
         self.cfg = cfg
-        self.logger = setup_logging(cfg.log_dir, "endpoint_agent")
+        self.logger = setup_logging(cfg.log_dir, "edge_agent")
         self.device_id = cfg.device_id
         self.seq = 0
         self.control = UDPTransport(cfg.bind_host, cfg.control_port)
         self.heartbeat_tx = UDPTransport("0.0.0.0", 0)
-        self.video = GStreamerProcess()
+        self.runtime = MeisoEdgeRuntime()
         self.running = True
 
     def stop(self) -> None:
         self.running = False
-        self.video.stop()
         self.control.close()
         self.heartbeat_tx.close()
 
     def send_heartbeat(self) -> None:
         self.seq += 1
-        msg = Message(
-            msg_type=MessageType.HEARTBEAT,
-            src_role=Role.ENDPOINT,
-            src_id=self.device_id,
-            seq=self.seq,
-            dst_role=Role.SDC,
+        msg = MeisoMessage.make(
+            message_type=MeisoMessageType.HEARTBEAT,
+            channel=MeisoChannel.HIGH_RELIABLE,
+            session_id=self.device_id,
+            sequence=self.seq,
             payload={
-                "video_running": self.video.running(),
-                "role": "endpoint",
+                "role": "edge",
                 "platform": self.cfg.platform,
                 "control_port": self.cfg.control_port,
+                "active_features": sorted(
+                    lease.request.feature.value for lease in self.runtime.feature_leases.active.values()
+                ),
             },
         )
         self.heartbeat_tx.send(msg, self.cfg.peer_host, self.cfg.peer_heartbeat_port)
 
-    def handle_command(self, msg: Message, addr: tuple[str, int]) -> None:
-        command = str(msg.payload.get("command", msg.msg_type.value))
+    def handle_message(self, msg: MeisoMessage, addr: tuple[str, int]) -> None:
         self.logger.info("command from %s: %s", addr, json.dumps(msg.payload, ensure_ascii=False))
-        ok = True
-        extra: dict[str, Any] = {}
+        payload: dict[str, Any]
+        message_type = MeisoMessageType.ACK
         try:
-            if command == "ping":
-                extra = {"pong": True}
-            elif command == "health":
-                extra = {"health": collect_health()}
-            elif command == "start_video":
-                cmd = testsrc_h264_rtp_sender_command(
-                    host=str(msg.payload.get("video_host", self.cfg.video_host)),
-                    port=int(msg.payload.get("video_port", self.cfg.video_port)),
-                    width=int(msg.payload.get("width", self.cfg.video_width)),
-                    height=int(msg.payload.get("height", self.cfg.video_height)),
-                    fps=int(msg.payload.get("fps", self.cfg.video_fps)),
-                    encoder=str(msg.payload.get("encoder", self.cfg.video_encoder)),
-                )
-                self.logger.info("starting video pipeline: %s", cmd)
-                self.video.start(cmd)
-                extra = {"video_running": self.video.running(), "pipeline": cmd}
-            elif command == "stop_video":
-                self.video.stop()
-                extra = {"video_running": self.video.running()}
-            elif command == "start_lowfi":
-                extra = {"lowfi_running": False, "adapter": "not_configured"}
-            elif command == "stop_lowfi":
-                extra = {"lowfi_running": False, "adapter": "not_configured"}
-            elif command == "power_state":
-                extra = {"power": {"adapter": "not_configured"}}
+            if msg.header.message_type == MeisoMessageType.FEATURE_REQUEST:
+                request = FeatureRequest.from_payload(msg.payload)
+                response = self.runtime.request_feature(request)
+                message_type = MeisoMessageType.FEATURE_RESPONSE
+                payload = response.to_payload()
+            elif msg.header.message_type == MeisoMessageType.EDGE_STATUS:
+                payload = {"health": collect_health()}
             else:
-                ok = False
-                extra = {"error": f"unknown command {command!r}"}
+                payload = {"ackMessageType": msg.header.message_type.value, "ok": True}
         except Exception as exc:
-            ok = False
-            extra = {"error": str(exc)}
-        reply = ack_for(msg, src_role=Role.ENDPOINT, src_id=self.device_id, ok=ok, extra=extra)
+            message_type = MeisoMessageType.ERROR
+            payload = {"error": str(exc), "ackMessageType": msg.header.message_type.value}
+        reply = MeisoMessage.make(
+            message_type=message_type,
+            channel=MeisoChannel.HIGH_RELIABLE,
+            session_id=msg.header.session_id,
+            sequence=msg.header.sequence,
+            payload=payload,
+        )
         self.control.send(reply, addr[0], addr[1])
 
     def run(self) -> None:
         self.logger.info(
-            "endpoint agent starting: id=%s platform=%s peer=%s:%s control=%s",
+            "edge agent starting: id=%s platform=%s peer=%s:%s control=%s",
             self.device_id,
             self.cfg.platform,
             self.cfg.peer_host,
@@ -104,29 +91,17 @@ class EndpointAgent:
                 last_hb = now
             msg, addr = self.control.recv()
             if msg is not None and addr is not None:
-                if msg.msg_type in {
-                    MessageType.COMMAND,
-                    MessageType.PING,
-                    MessageType.HEALTH,
-                    MessageType.START_VIDEO,
-                    MessageType.STOP_VIDEO,
-                    MessageType.START_LOWFI,
-                    MessageType.STOP_LOWFI,
-                    MessageType.POWER_STATE,
-                }:
-                    self.handle_command(msg, addr)
-                else:
-                    self.logger.info("ignored message: %s", msg.to_dict())
+                self.handle_message(msg, addr)
 
 
-class SDCAgent:
+class HostAgent:
     def __init__(self, cfg: SDKConfig) -> None:
         self.cfg = cfg
-        self.logger = setup_logging(cfg.log_dir, "sdc_agent")
+        self.logger = setup_logging(cfg.log_dir, "host_agent")
         self.device_id = cfg.device_id
         self.rx = UDPTransport(cfg.bind_host, cfg.heartbeat_port)
         self.running = True
-        self.last_endpoint: dict[str, dict[str, Any]] = {}
+        self.last_edge: dict[str, dict[str, Any]] = {}
 
     def stop(self) -> None:
         self.running = False
@@ -134,7 +109,7 @@ class SDCAgent:
 
     def run(self) -> None:
         self.logger.info(
-            "sdc agent starting: id=%s platform=%s listen=%s:%s",
+            "host agent starting: id=%s platform=%s listen=%s:%s",
             self.device_id,
             self.cfg.platform,
             self.cfg.bind_host,
@@ -144,23 +119,24 @@ class SDCAgent:
             msg, addr = self.rx.recv()
             if msg is None:
                 continue
-            if msg.msg_type == MessageType.HEARTBEAT:
-                self.last_endpoint[msg.src_id] = {"addr": addr, "msg": msg.to_dict(), "time": time.time()}
+            if msg.header.message_type == MeisoMessageType.HEARTBEAT:
+                edge_id = str(msg.payload.get("edgeId", msg.header.session_id))
+                self.last_edge[edge_id] = {"addr": addr, "msg": msg.to_dict(), "time": time.time()}
                 self.logger.info(
                     "heartbeat from %s at %s payload=%s",
-                    msg.src_id,
+                    edge_id,
                     addr,
                     json.dumps(msg.payload, ensure_ascii=False),
                 )
-            elif msg.msg_type in (MessageType.ACK, MessageType.ERROR):
+            elif msg.header.message_type in (MeisoMessageType.ACK, MeisoMessageType.ERROR):
                 self.logger.info(
                     "reply from %s at %s payload=%s",
-                    msg.src_id,
+                    msg.header.session_id,
                     addr,
                     json.dumps(msg.payload, ensure_ascii=False),
                 )
             else:
-                self.logger.info("message from %s at %s: %s", msg.src_id, addr, msg.to_dict())
+                self.logger.info("message from %s at %s: %s", msg.header.session_id, addr, msg.to_dict())
 
 
 def install_signal_handlers(agent: Any) -> None:

@@ -4,8 +4,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from .interfaces import AdapterStatus, StreamConfig
 from ..power import MeasurementSource, PowerCostPoint, PowerProfile
+from .interfaces import AdapterStatus, StreamConfig
 
 
 @dataclass
@@ -133,7 +133,7 @@ class FakePowerMonitor:
         return {
             "mode": self.mode,
             "battery_percent": 100.0,
-            "rails_mw": {"endpoint": 250.0, "sensors": 12.0, "radio": 0.5},
+            "rails_mw": {"edge": 250.0, "sensors": 12.0, "radio": 0.5},
         }
 
     def get_power_profile(self) -> PowerProfile:
@@ -168,14 +168,14 @@ class FakePowerMonitor:
 
 
 @dataclass
-class FakeLowfiTelemetryGenerator:
+class FakeLocalResultGenerator:
     source_id: int = 1
     seq: int = 0
 
     def next_event(self) -> dict[str, Any]:
         self.seq += 1
         return {
-            "type": "lowfi_vision",
+            "type": "local_result",
             "source_id": self.source_id,
             "seq": self.seq,
             "roi": {"x": 0, "y": 0, "w": 64, "h": 64},
@@ -215,9 +215,19 @@ class FakeRadioLink:
             default_level=32,
             cost_points=[
                 PowerCostPoint(level=0, adapter_state="off", confidence_level_u8=255),
-                PowerCostPoint(level=32, adapter_state="active", settings={"link_role": "wake_listen"}, expected_mw=0.2),
+                PowerCostPoint(
+                    level=32,
+                    adapter_state="active",
+                    settings={"link_role": "wake_listen"},
+                    expected_mw=0.2,
+                ),
                 PowerCostPoint(level=64, adapter_state="active", settings={"link_role": "control"}, expected_mw=1.5),
-                PowerCostPoint(level=96, adapter_state="active", settings={"link_role": "telemetry_burst"}, expected_mw=8.0),
+                PowerCostPoint(
+                    level=96,
+                    adapter_state="active",
+                    settings={"link_role": "telemetry_burst"},
+                    expected_mw=8.0,
+                ),
             ],
             unknowns=["airtime model is not calibrated"],
         )

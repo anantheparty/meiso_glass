@@ -27,7 +27,7 @@ class AdmissionController:
     power_profiles: dict[str, PowerProfile]
 
     @classmethod
-    def from_lists(cls, capabilities: list[Capability], power_profiles: list[PowerProfile]) -> "AdmissionController":
+    def from_lists(cls, capabilities: list[Capability], power_profiles: list[PowerProfile]) -> AdmissionController:
         return cls(
             capabilities={cap.capability_id: cap for cap in capabilities},
             power_profiles={profile.profile_id: profile for profile in power_profiles},
@@ -51,7 +51,11 @@ class AdmissionController:
             if cap.spec.power_profile_ref:
                 profile = self.power_profiles.get(cap.spec.power_profile_ref)
                 if profile is None:
-                    return self._reject(steps, "power_profile_exists", f"missing power profile {cap.spec.power_profile_ref}")
+                    return self._reject(
+                        steps,
+                        "power_profile_exists",
+                        f"missing power profile {cap.spec.power_profile_ref}",
+                    )
                 try:
                     level = profile.select_level_at_or_below(session.spec.power_budget.max_power_level_u8)
                 except ValueError as exc:

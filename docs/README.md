@@ -1,9 +1,15 @@
 # 文档索引
 
-`docs/` 顶层只保留三个入口：
+`docs/` 的权威来源只有一个：[`SDK/bible/SDK_DESIGN_OVERVIEW.md`](SDK/bible/SDK_DESIGN_OVERVIEW.md)。
 
-- [`origin/`](origin/README.md)：原始输入文档。这里保存项目早期基线资料，不允许 agent 私自新增、移动、重写或修改。
-- [`SDK/`](SDK/README.md)：SDK 派生文档。这里只保存三份核心设计文档和索引。
-- [`validation/`](validation/README.md)：真机验证计划和实验记录。这里保存刷机、bring-up、链路验证和测量设计，不作为 SDK 使用指南。
+其它页面都是从 bible 派生出来的维护视图：
 
-除 `origin/` 内明确要求保留原貌的原始文档外，解释性文档正文统一使用中文，目录名和文件名使用英文。
+- [`SDK/`](SDK/README.md)：唯一 bible 和 SDK 文档入口。
+- [`api/spec.md`](api/spec.md)：V0.1 初版 API contract。
+- [`standards/coding-standard.md`](standards/coding-standard.md)：编码、命名、API 和文档规范。
+- [`development/environment.md`](development/environment.md)：本地开发环境和命令。
+- [`development/hardware-validation.md`](development/hardware-validation.md)：硬件验证如何进入 SDK contract。
+- [`ci-cd/`](ci-cd/README.md)：CI/CD gate 和本地等价命令。
+- [`origin/`](origin/README.md)：原始输入文档，只作为历史事实来源。
+
+解释性正文使用中文。目录名、文件名、协议字段、配置键、CLI、代码标识符使用英文。

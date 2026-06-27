@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
-from .types import Condition, Metadata, StructuredError, StringEnum
 from ..power import PowerBudget
+from .types import Condition, Metadata, StringEnum, StructuredError
 
 
 class ValidationState(StringEnum):

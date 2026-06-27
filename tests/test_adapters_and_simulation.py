@@ -1,7 +1,7 @@
 from meiso_glass.adapters.interfaces import StreamConfig
 from meiso_glass.adapters.mock import FakeIMU, FakePowerMonitor, FakeRadioLink, MockCameraAdapter
-from meiso_glass.messages import MessageType, Role
-from meiso_glass.simulation.mock_devices import MockEndpoint, MockSDC
+from meiso_glass.protocol import MeisoMessageType
+from meiso_glass.simulation.mock_devices import MockEdge, MockHost
 from meiso_glass.telemetry.packet import TelemetryPacket, TelemetryPacketType
 
 
@@ -27,19 +27,17 @@ def test_fake_sensor_power_and_radio_are_pc_runnable():
     assert radio.receive_packet() == b"hello"
 
 
-def test_mock_endpoint_and_sdc_create_protocol_objects():
-    endpoint = MockEndpoint()
-    sdc = MockSDC()
+def test_mock_edge_and_host_create_protocol_objects():
+    edge = MockEdge()
+    host = MockHost()
 
-    heartbeat = endpoint.heartbeat()
-    sdc.receive(heartbeat)
-    packet = endpoint.lowfi_packet()
-    ping = sdc.ping(endpoint.device_id)
+    heartbeat = edge.heartbeat()
+    host.receive(heartbeat)
+    packet = edge.local_result_packet()
+    request = host.status_request(edge.device_id)
 
-    assert heartbeat.msg_type == MessageType.HEARTBEAT
-    assert heartbeat.src_role == Role.ENDPOINT
-    assert heartbeat.dst_role == Role.SDC
-    assert sdc.received == [heartbeat]
+    assert heartbeat.header.message_type == MeisoMessageType.HEARTBEAT
+    assert host.received == [heartbeat]
     assert isinstance(packet, TelemetryPacket)
-    assert packet.packet_type == TelemetryPacketType.LOWFI_VISION
-    assert ping.msg_type == MessageType.PING
+    assert packet.packet_type == TelemetryPacketType.LOCAL_RESULT
+    assert request.header.message_type == MeisoMessageType.EDGE_STATUS

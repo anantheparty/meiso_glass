@@ -3,7 +3,7 @@ from __future__ import annotations
 import socket
 from dataclasses import dataclass
 
-from meiso_glass.messages import Message
+from meiso_glass.protocol import MeisoMessage
 
 
 @dataclass
@@ -21,12 +21,12 @@ class UDPTransport:
     def close(self) -> None:
         self.sock.close()
 
-    def send(self, msg: Message, host: str, port: int) -> None:
+    def send(self, msg: MeisoMessage, host: str, port: int) -> None:
         self.sock.sendto(msg.to_bytes(), (host, port))
 
-    def recv(self) -> tuple[Message | None, tuple[str, int] | None]:
+    def recv(self) -> tuple[MeisoMessage | None, tuple[str, int] | None]:
         try:
             data, addr = self.sock.recvfrom(65535)
-            return Message.from_bytes(data), addr
-        except socket.timeout:
+            return MeisoMessage.from_bytes(data), addr
+        except TimeoutError:
             return None, None

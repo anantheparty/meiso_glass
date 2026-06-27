@@ -1,6 +1,6 @@
 device:
-  id: endpoint-dev-001
-  role: endpoint
+  id: edge-dev-001
+  role: edge
   platform: generic-linux
 
 network:
@@ -9,8 +9,13 @@ network:
   peer_host: 127.0.0.1
   peer_heartbeat_port: 42000
 
+channels:
+  high_reliable_port: 42001
+  latest_wins_port: 42003
+  low_reliable_port: 42004
+  low_power_port: 42005
+
 video:
-  # 先使用 videotestsrc；平台 profile 后续可以替换编码器。
   host: 127.0.0.1
   port: 5000
   width: 1280

@@ -1,6 +1,6 @@
 device:
-  id: imx8mm-endpoint-001
-  role: endpoint
+  id: imx8mm-edge-001
+  role: edge
   platform: imx8mm
 
 network:
@@ -9,8 +9,13 @@ network:
   peer_host: 192.168.10.3
   peer_heartbeat_port: 42000
 
+channels:
+  high_reliable_port: 42001
+  latest_wins_port: 42003
+  low_reliable_port: 42004
+  low_power_port: 42005
+
 video:
-  # 仅用于上电调试。探测 BSP 专用 VPU 元素后再替换编码器。
   host: 192.168.10.3
   port: 5000
   width: 1280

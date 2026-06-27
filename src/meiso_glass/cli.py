@@ -2,33 +2,33 @@ from __future__ import annotations
 
 import argparse
 import json
-import socket
 import sys
 
-from .agents import EndpointAgent, SDCAgent, install_signal_handlers
+from .agents import EdgeAgent, HostAgent, install_signal_handlers
 from .config import load_config
+from .features import FeatureName, FeaturePriority, FeatureRequest
 from .health import collect_health
-from .messages import Message, MessageType, Role
+from .protocol import MeisoChannel, MeisoMessage, MeisoMessageType
 from .transport.udp import UDPTransport
 
 
-def main_endpoint() -> int:
+def main_edge(args: argparse.Namespace | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
-    args = ap.parse_args()
-    cfg = load_config(args.config)
-    agent = EndpointAgent(cfg)
+    parsed = args or ap.parse_args()
+    cfg = load_config(parsed.config)
+    agent = EdgeAgent(cfg)
     install_signal_handlers(agent)
     agent.run()
     return 0
 
 
-def main_sdc() -> int:
+def main_host(args: argparse.Namespace | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
-    args = ap.parse_args()
-    cfg = load_config(args.config)
-    agent = SDCAgent(cfg)
+    parsed = args or ap.parse_args()
+    cfg = load_config(parsed.config)
+    agent = HostAgent(cfg)
     install_signal_handlers(agent)
     agent.run()
     return 0
@@ -43,39 +43,31 @@ def main_send() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", required=True)
     ap.add_argument("--port", type=int, default=42001)
-    ap.add_argument("--src-id", default=socket.gethostname())
-    ap.add_argument("--video-host", default=None)
-    ap.add_argument("--video-port", type=int, default=None)
-    ap.add_argument("--encoder", default=None)
+    ap.add_argument("--session-id", required=True)
+    ap.add_argument("--feature", choices=[item.value for item in FeatureName], required=True)
+    ap.add_argument("--mode", required=True)
+    ap.add_argument("--request-id", required=True)
+    ap.add_argument("--lease-ms", type=int, default=0)
     ap.add_argument(
-        "command",
-        choices=["ping", "health", "start_video", "stop_video", "start_lowfi", "stop_lowfi", "power_state"],
+        "--priority",
+        choices=[item.value for item in FeaturePriority],
+        default=FeaturePriority.NORMAL.value,
     )
     args = ap.parse_args()
 
-    payload: dict[str, object] = {"command": args.command}
-    if args.video_host:
-        payload["video_host"] = args.video_host
-    if args.video_port:
-        payload["video_port"] = args.video_port
-    if args.encoder:
-        payload["encoder"] = args.encoder
-
-    msg_type_by_command = {
-        "ping": MessageType.PING,
-        "health": MessageType.HEALTH,
-        "start_video": MessageType.START_VIDEO,
-        "stop_video": MessageType.STOP_VIDEO,
-        "start_lowfi": MessageType.START_LOWFI,
-        "stop_lowfi": MessageType.STOP_LOWFI,
-        "power_state": MessageType.POWER_STATE,
-    }
-    msg = Message(
-        msg_type=msg_type_by_command[args.command],
-        src_role=Role.HOST,
-        src_id=args.src_id,
-        dst_role=Role.ENDPOINT,
-        payload=payload,
+    request = FeatureRequest(
+        feature=FeatureName(args.feature),
+        mode=args.mode,
+        priority=FeaturePriority(args.priority),
+        lease_time_ms=args.lease_ms,
+        request_id=args.request_id,
+    )
+    msg = MeisoMessage.make(
+        message_type=MeisoMessageType.FEATURE_REQUEST,
+        channel=MeisoChannel.HIGH_RELIABLE,
+        session_id=args.session_id,
+        sequence=1,
+        payload=request.to_payload(),
     )
     tx = UDPTransport("0.0.0.0", 0, timeout_s=2.0)
     tx.send(msg, args.host, args.port)
@@ -83,6 +75,68 @@ def main_send() -> int:
     tx.close()
     if reply:
         print(json.dumps(reply.to_dict(), ensure_ascii=False, indent=2))
-        return 0 if reply.msg_type == MessageType.ACK else 2
+        return 0 if reply.header.message_type != MeisoMessageType.ERROR else 2
     print("No reply", file=sys.stderr)
     return 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="meiso")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    edge = sub.add_parser("edge")
+    edge.add_argument("--config", required=True)
+
+    host = sub.add_parser("host")
+    host.add_argument("--config", required=True)
+
+    sub.add_parser("probe")
+
+    send = sub.add_parser("send")
+    send.add_argument("--host", required=True)
+    send.add_argument("--port", type=int, default=42001)
+    send.add_argument("--session-id", required=True)
+    send.add_argument("--feature", choices=[item.value for item in FeatureName], required=True)
+    send.add_argument("--mode", required=True)
+    send.add_argument("--request-id", required=True)
+    send.add_argument("--lease-ms", type=int, default=0)
+    send.add_argument(
+        "--priority",
+        choices=[item.value for item in FeaturePriority],
+        default=FeaturePriority.NORMAL.value,
+    )
+
+    args = parser.parse_args()
+    if args.command == "edge":
+        return main_edge(args)
+    if args.command == "host":
+        return main_host(args)
+    if args.command == "probe":
+        return main_probe()
+    if args.command == "send":
+        request = FeatureRequest(
+            feature=FeatureName(args.feature),
+            mode=args.mode,
+            priority=FeaturePriority(args.priority),
+            lease_time_ms=args.lease_ms,
+            request_id=args.request_id,
+        )
+        msg = MeisoMessage.make(
+            message_type=MeisoMessageType.FEATURE_REQUEST,
+            channel=MeisoChannel.HIGH_RELIABLE,
+            session_id=args.session_id,
+            sequence=1,
+            payload=request.to_payload(),
+        )
+        tx = UDPTransport("0.0.0.0", 0, timeout_s=2.0)
+        try:
+            tx.send(msg, args.host, args.port)
+            reply, _addr = tx.recv()
+        finally:
+            tx.close()
+        if reply:
+            print(json.dumps(reply.to_dict(), ensure_ascii=False, indent=2))
+            return 0 if reply.header.message_type != MeisoMessageType.ERROR else 2
+        print("No reply", file=sys.stderr)
+        return 1
+    raise AssertionError(args.command)
