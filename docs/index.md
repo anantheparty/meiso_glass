@@ -10,12 +10,12 @@ hero:
       text: Read Bible
       link: /SDK/bible/SDK_DESIGN_OVERVIEW
     - theme: alt
-      text: API Spec
-      link: /api/spec
+      text: Read Spec
+      link: /spec/
 
 features:
   - title: Single Bible
-    details: SDK_DESIGN_OVERVIEW.md is the only design authority. Derived docs explain API, standards, development, and CI/CD.
+    details: SDK_DESIGN_OVERVIEW.md is the only design authority. Derived docs explain spec, standards, development, and CI/CD.
   - title: Host / Edge
     details: Host and Edge are the only public roles in SDK naming, protocols, docs, and config.
   - title: Meiso Protocol

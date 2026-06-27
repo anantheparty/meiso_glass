@@ -5,8 +5,8 @@
 其它页面都是从 bible 派生出来的维护视图：
 
 - [`SDK/`](SDK/README.md)：唯一 bible 和 SDK 文档入口。
-- [`api/spec.md`](api/spec.md)：V0.1 初版 API contract。
-- [`api/ai-native.md`](api/ai-native.md)：AI-native tools、context、state API。
+- [`spec/`](spec/)：V0.1 初版 contract spec。
+- [`spec/ai-native.md`](spec/ai-native.md)：AI-native tools、context、state 接口契约。
 - [`standards/coding-standard.md`](standards/coding-standard.md)：编码、命名、API 和文档规范。
 - [`standards/language-policy.md`](standards/language-policy.md)：语言选型和 ABI 规则。
 - [`development/environment.md`](development/environment.md)：本地开发环境和命令。

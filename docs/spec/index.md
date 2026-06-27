@@ -1,18 +1,19 @@
-# API Spec
+# Spec
 
-本页定义 Meiso SDK V0.1 的初版 API 形状。`SDK_DESIGN_OVERVIEW.md` 仍是唯一 bible；本页只把 bible 落成可开发、可测试的 contract。
+本页定义 Meiso SDK V0.1 的初版 contract 形状。`SDK_DESIGN_OVERVIEW.md` 仍是唯一 bible；本页只把 bible 落成可开发、可测试的 spec。
 
 ## Spec Index
 
 这些页面是当前 V0.1 contract 的专项 spec：
 
-- [Wire Protocol](./specs/wire-protocol.md)：消息头、对象 ID、通道语义、版本兼容、错误码。
-- [Capability Profile](./specs/capability-profile.md)：设备能力、渲染等级、传感器能力、功耗档位。
-- [State Machines](./specs/state-machines.md)：连接、Feature Lease、传感器、资产同步、AI Tool。
-- [Time Model](./specs/time-model.md)：时钟同步、timestamp、`validUntil`、`displayTime`。
-- [Render Profile](./specs/render-profile.md)：Meiso Profile 0/1/2 支持和禁止的能力。
-- [Security Policy](./specs/security-policy.md)：相机、麦克风、眼动、用户确认、离线策略。
-- [Fault Model](./specs/fault-model.md)：延迟、丢包、乱序、断连、资产缺失、Host 消失。
+- [Wire Protocol](./wire-protocol.md)：消息头、对象 ID、通道语义、版本兼容、错误码。
+- [Capability Profile](./capability-profile.md)：设备能力、渲染等级、传感器能力、功耗档位。
+- [State Machines](./state-machines.md)：连接、Feature Lease、传感器、资产同步、AI Tool。
+- [Time Model](./time-model.md)：时钟同步、timestamp、`validUntil`、`displayTime`。
+- [Render Profile](./render-profile.md)：Meiso Profile 0/1/2 支持和禁止的能力。
+- [Security Policy](./security-policy.md)：相机、麦克风、眼动、用户确认、离线策略。
+- [Fault Model](./fault-model.md)：延迟、丢包、乱序、断连、资产缺失、Host 消失。
+- [AI Native Interface](./ai-native.md)：AI tools、context、state 的接口契约。
 
 ## 命名
 
@@ -21,9 +22,9 @@
 - 公开 CLI 使用 `meiso`，子命令使用 `host`、`edge`、`send`、`probe`。
 - 公开类名前缀使用 `Meiso`，例如 `MeisoHost`、`MeisoEdgeRuntime`、`MeisoMessage`。
 
-## Host SDK
+## Host Contract
 
-Host SDK 暴露六组 API：
+Host 侧 contract 暂定六组接口：
 
 | API | 责任 |
 |---|---|
@@ -50,9 +51,9 @@ msg = host.device.request_feature(
 )
 ```
 
-## AI Native API
+## AI Native Interface
 
-Host SDK 暴露 `host.ai`，用于 agent-friendly 的工具、上下文和状态管理。
+Host contract 暂定暴露 `host.ai`，用于 agent-friendly 的工具、上下文和状态管理。
 
 核心对象：
 
@@ -72,7 +73,7 @@ Host SDK 暴露 `host.ai`，用于 agent-friendly 的工具、上下文和状态
 - state patch 必须带 `base_version`。
 - context packet 必须可压缩，不能无限增长。
 
-详细设计见 [AI Native API](./ai-native.md)。
+详细设计见 [AI Native Interface](./ai-native.md)。
 
 ## Meiso Protocol Header
 

@@ -4,12 +4,12 @@ ALLOWED_DOC_TOP_LEVEL = {
     ".vitepress",
     "README.md",
     "SDK",
-    "api",
     "ci-cd",
     "development",
     "index.md",
     "origin",
     "public",
+    "spec",
     "standards",
 }
 

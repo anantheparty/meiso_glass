@@ -26,17 +26,17 @@ export default withMermaid(defineConfig({
         ]
       },
       {
-        text: 'API',
+        text: 'Spec',
         items: [
-          { text: 'Spec', link: '/api/spec' },
-          { text: 'AI Native API', link: '/api/ai-native' },
-          { text: 'Wire Protocol', link: '/api/specs/wire-protocol' },
-          { text: 'Capability Profile', link: '/api/specs/capability-profile' },
-          { text: 'State Machines', link: '/api/specs/state-machines' },
-          { text: 'Time Model', link: '/api/specs/time-model' },
-          { text: 'Render Profile', link: '/api/specs/render-profile' },
-          { text: 'Security Policy', link: '/api/specs/security-policy' },
-          { text: 'Fault Model', link: '/api/specs/fault-model' }
+          { text: 'Overview', link: '/spec/' },
+          { text: 'AI Native Interface', link: '/spec/ai-native' },
+          { text: 'Wire Protocol', link: '/spec/wire-protocol' },
+          { text: 'Capability Profile', link: '/spec/capability-profile' },
+          { text: 'State Machines', link: '/spec/state-machines' },
+          { text: 'Time Model', link: '/spec/time-model' },
+          { text: 'Render Profile', link: '/spec/render-profile' },
+          { text: 'Security Policy', link: '/spec/security-policy' },
+          { text: 'Fault Model', link: '/spec/fault-model' }
         ]
       },
       {

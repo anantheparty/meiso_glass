@@ -1,6 +1,6 @@
-# AI Native API
+# AI Native Interface Spec
 
-Meiso SDK 的 AI-native API 不是把 LLM 塞进 runtime，而是把 SDK 变成 agent 容易安全使用的工具系统。
+Meiso SDK 的 AI-native interface 不是把 LLM 塞进 runtime，而是把 SDK 变成 agent 容易安全使用的工具系统。
 
 核心对象：
 
@@ -13,7 +13,7 @@ Meiso SDK 的 AI-native API 不是把 LLM 塞进 runtime，而是把 SDK 变成 
 | `ContextPacket` | 按优先级压缩后的上下文包 |
 | `StateSnapshot` | 只读状态快照 |
 | `StatePatch` | 带 version precondition 的状态变更 |
-| `MeisoAiApi` | Host 上的 tools/context/state 聚合入口 |
+| `MeisoAiApi` | Host 上的 tools/context/state 聚合入口，名字是当前 Python V0 实现细节 |
 
 ## Design Rules
 

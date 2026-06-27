@@ -9,7 +9,7 @@ ACTIVE_PATHS = [
     Path("configs"),
     Path("systemd"),
     Path("docs/SDK"),
-    Path("docs/api"),
+    Path("docs/spec"),
     Path("docs/standards"),
     Path("docs/development"),
     Path("docs/ci-cd"),

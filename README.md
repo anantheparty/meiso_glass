@@ -7,7 +7,7 @@ Host 负责业务逻辑、AI、物理、场景权威状态和资产生产。Edge
 ## 当前范围
 
 - Meiso Protocol：versioned header、logical channel、payload length 校验。
-- Host SDK：Device、Scene、HUD、Sensor、Telemetry API。
+- Host contract：Device、Scene、HUD、Sensor、Telemetry 和 AI-native interface。
 - Edge Runtime：FeatureRequest lease、Scene Replica、HUD 合成顺序、Frame Scheduler contract。
 - Render Profile 0：OpenGL ES 2.0 的最小可移植渲染约束。
 - Mock 和 reference path：用于本机开发，不定义最终硬件绑定。
@@ -65,7 +65,7 @@ src/meiso_glass/        SDK 包
 configs/examples/       平台中立示例配置
 configs/platforms/      板卡专用上电调试 profile
 scripts/                可移植的开发/探针/视频冒烟脚本
-docs/                   Web wiki、唯一 bible、API spec、标准、开发和 CI/CD 文档
+docs/                   Web wiki、唯一 bible、spec、标准、开发和 CI/CD 文档
 systemd/                通用 service 模板
 tests/                  聚焦 SDK 契约的测试
 ```
@@ -77,10 +77,10 @@ tests/                  聚焦 SDK 契约的测试
 - [文档索引](docs/README.md)
 - [SDK 文档索引](docs/SDK/README.md)
 - [唯一 SDK bible](docs/SDK/bible/SDK_DESIGN_OVERVIEW.md)
-- [API Spec](docs/api/spec.md)
+- [Spec](docs/spec/)
 - [Coding Standard](docs/standards/coding-standard.md)
 - [Development Environment](docs/development/environment.md)
-- [CI/CD](docs/ci-cd/README.md)
+- [CI/CD](docs/ci-cd/)
 
 ## 硬件上下文
 
