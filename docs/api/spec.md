@@ -20,6 +20,7 @@ Host SDK 暴露五组 API：
 | `hud` | 提交 App HUD 的 text、image、panel、progress、anchor、layout |
 | `sensor` | 订阅 camera、audio、eye、IMU 或 Edge 本地处理结果 |
 | `telemetry` | 读取温度、电量、FPS、丢帧、网络、缓存和错误 |
+| `ai` | 面向 agent 的 tools、context、state API |
 
 Python 入口：
 
@@ -36,6 +37,30 @@ msg = host.device.request_feature(
     )
 )
 ```
+
+## AI Native API
+
+Host SDK 暴露 `host.ai`，用于 agent-friendly 的工具、上下文和状态管理。
+
+核心对象：
+
+- `ToolSpec`
+- `ToolCall`
+- `ToolResult`
+- `ContextItem`
+- `ContextPacket`
+- `StateSnapshot`
+- `StatePatch`
+
+规则：
+
+- tool 名字必须使用 `meiso.` 前缀。
+- tool 必须声明 logical channel。
+- 会打开 Edge 高功耗功能的 tool 必须通过 lease。
+- state patch 必须带 `base_version`。
+- context packet 必须可压缩，不能无限增长。
+
+详细设计见 [AI Native API](./ai-native.md)。
 
 ## Meiso Protocol Header
 

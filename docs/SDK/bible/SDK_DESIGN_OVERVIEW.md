@@ -85,6 +85,13 @@ MEISO SDK V0.1 系统草案
    4.5 Telemetry API
        获取温度、电量、帧率、丢帧、网络延迟、丢包、缓存和错误。
 
+   4.6 AI Native API
+       给 agent 暴露 tools、context 和 state，而不是让 agent 直接手写协议包。
+       Tool 必须声明 meiso 前缀、输入输出 schema、logical channel、是否需要 lease 和是否需要确认。
+       Context 必须可过期、可压缩、可引用，避免无限塞入 prompt。
+       State 使用带版本前提的 Snapshot/Patch，避免旧状态覆盖新状态。
+       AI 只能通过 SDK tool 调用 Device、Scene、HUD、Sensor 和 Telemetry API，不能绕过 policy。
+
 5. 网络逻辑通道
    5.1 High Reliable
        用于控制、权限、创建/销毁实体、关键事件和状态切换。

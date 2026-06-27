@@ -1,3 +1,17 @@
+from .ai import (
+    AiToolKind,
+    AiToolResultStatus,
+    ContextItem,
+    ContextKind,
+    ContextPacket,
+    MeisoAiApi,
+    StatePatch,
+    StateSnapshot,
+    ToolCall,
+    ToolRegistry,
+    ToolResult,
+    ToolSpec,
+)
 from .features import FeatureName, FeaturePriority, FeatureRequest, FeatureResponse, FeatureResponseStatus
 from .host import MeisoDeviceApi, MeisoHost, MeisoHudApi, MeisoSceneApi, MeisoSensorApi, MeisoTelemetryApi
 from .hud import HudElement, HudElementType, HudUpdate
@@ -9,6 +23,11 @@ from .sensors import SensorSubscription, SensorType
 from .telemetry import TelemetryReport
 
 __all__ = [
+    "AiToolKind",
+    "AiToolResultStatus",
+    "ContextItem",
+    "ContextKind",
+    "ContextPacket",
     "FeatureName",
     "FeaturePriority",
     "FeatureRequest",
@@ -17,6 +36,7 @@ __all__ = [
     "HudElement",
     "HudElementType",
     "HudUpdate",
+    "MeisoAiApi",
     "MeisoChannel",
     "MeisoDeviceApi",
     "MeisoEdgeRuntime",
@@ -33,5 +53,11 @@ __all__ = [
     "SensorSubscription",
     "SensorType",
     "TelemetryReport",
+    "StatePatch",
+    "StateSnapshot",
+    "ToolCall",
+    "ToolRegistry",
+    "ToolResult",
+    "ToolSpec",
     "Transform",
 ]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .ai import MeisoAiApi
 from .features import FeatureRequest
 from .hud import HudUpdate
 from .protocol import MeisoChannel, MeisoMessage, MeisoMessageType
@@ -93,6 +94,7 @@ class MeisoTelemetryApi:
 @dataclass
 class MeisoHost:
     session_id: str
+    ai: MeisoAiApi = field(init=False)
     device: MeisoDeviceApi = field(init=False)
     scene: MeisoSceneApi = field(init=False)
     hud: MeisoHudApi = field(init=False)
@@ -100,6 +102,8 @@ class MeisoHost:
     telemetry: MeisoTelemetryApi = field(init=False)
 
     def __post_init__(self) -> None:
+        self.ai = MeisoAiApi(self.session_id)
+        self.ai.register_default_tools()
         self.device = MeisoDeviceApi(self.session_id)
         self.scene = MeisoSceneApi(self.session_id)
         self.hud = MeisoHudApi(self.session_id)

@@ -28,7 +28,8 @@ export default withMermaid(defineConfig({
       {
         text: 'API',
         items: [
-          { text: 'Spec', link: '/api/spec' }
+          { text: 'Spec', link: '/api/spec' },
+          { text: 'AI Native API', link: '/api/ai-native' }
         ]
       },
       {
@@ -48,7 +49,8 @@ export default withMermaid(defineConfig({
       {
         text: 'CI/CD',
         items: [
-          { text: 'Gates', link: '/ci-cd/' }
+          { text: 'Overview', link: '/ci-cd/' },
+          { text: 'Pipeline Design', link: '/ci-cd/pipeline' }
         ]
       }
     ],
