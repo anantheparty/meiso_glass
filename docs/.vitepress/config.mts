@@ -16,58 +16,42 @@ export default withMermaid(defineConfig({
     search: {
       provider: 'local'
     },
-    nav: [
-      { text: 'Bible', link: '/SDK/bible/SDK_DESIGN_OVERVIEW' },
-      { text: 'API Spec', link: '/api/spec' },
-      { text: 'Standards', link: '/standards/coding-standard' },
-      { text: 'Development', link: '/development/environment' },
-      { text: 'CI/CD', link: '/ci-cd/' }
+    nav: [],
+    sidebar: [
+      {
+        text: 'Bible',
+        items: [
+          { text: 'SDK Index', link: '/SDK/' },
+          { text: 'Design Overview', link: '/SDK/bible/SDK_DESIGN_OVERVIEW' }
+        ]
+      },
+      {
+        text: 'API',
+        items: [
+          { text: 'Spec', link: '/api/spec' }
+        ]
+      },
+      {
+        text: 'Standards',
+        items: [
+          { text: 'Coding Standard', link: '/standards/coding-standard' }
+        ]
+      },
+      {
+        text: 'Development',
+        items: [
+          { text: 'Environment', link: '/development/environment' },
+          { text: 'Local Smoke Tests', link: '/development/local-smoke-tests' },
+          { text: 'Hardware Validation', link: '/development/hardware-validation' }
+        ]
+      },
+      {
+        text: 'CI/CD',
+        items: [
+          { text: 'Gates', link: '/ci-cd/' }
+        ]
+      }
     ],
-    sidebar: {
-      '/SDK/': [
-        {
-          text: 'Bible',
-          items: [
-            { text: 'SDK Index', link: '/SDK/' },
-            { text: 'Design Overview', link: '/SDK/bible/SDK_DESIGN_OVERVIEW' }
-          ]
-        }
-      ],
-      '/api/': [
-        {
-          text: 'API',
-          items: [
-            { text: 'Spec', link: '/api/spec' }
-          ]
-        }
-      ],
-      '/standards/': [
-        {
-          text: 'Standards',
-          items: [
-            { text: 'Coding Standard', link: '/standards/coding-standard' }
-          ]
-        }
-      ],
-      '/development/': [
-        {
-          text: 'Development',
-          items: [
-            { text: 'Environment', link: '/development/environment' },
-            { text: 'Local Smoke Tests', link: '/development/local-smoke-tests' },
-            { text: 'Hardware Validation', link: '/development/hardware-validation' }
-          ]
-        }
-      ],
-      '/ci-cd/': [
-        {
-          text: 'CI/CD',
-          items: [
-            { text: 'Gates', link: '/ci-cd/' }
-          ]
-        }
-      ]
-    },
     socialLinks: [
       { icon: 'github', link: 'https://github.com/anantheparty/meiso_glass' }
     ],
