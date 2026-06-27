@@ -49,8 +49,7 @@ export default withMermaid(defineConfig({
       {
         text: 'CI/CD',
         items: [
-          { text: 'Overview', link: '/ci-cd/' },
-          { text: 'Pipeline Design', link: '/ci-cd/pipeline' }
+          { text: 'Overview', link: '/ci-cd/' }
         ]
       }
     ],

@@ -33,6 +33,13 @@
 - 其它文档只能解释当前实现、API、开发环境、CI/CD 或验证方法。
 - Mermaid 图只画局部关系，节点用短英文，长解释写正文。
 
+## 复杂度控制
+
+- 默认实现当前真实需要的最小 contract，不主动建设未来系统。
+- 新增 layer、adapter、workflow 或 gate 前，必须有明确的 contract 风险、重复实现、发布需求或硬件事实。
+- 未来想法可以记录为后续方向，但不能写成当前必须执行的制度。
+- CI/CD 当前只分 CI Gate、Release Gate 和 Hardware Validation；本地命令只是便利，不算治理层。
+
 ## 测试
 
 每次改变 public contract 至少更新一类测试：
