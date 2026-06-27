@@ -4,6 +4,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 export default withMermaid(defineConfig({
   title: 'Meiso Glass',
   description: 'Open dual-device AR glasses SDK wiki',
+  base: process.env.GITHUB_ACTIONS ? '/meiso_glass/' : '/',
   cleanUrls: true,
   srcExclude: [
     '**/.DS_Store',
