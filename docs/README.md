@@ -8,6 +8,7 @@
 - [`api/spec.md`](api/spec.md)：V0.1 初版 API contract。
 - [`api/ai-native.md`](api/ai-native.md)：AI-native tools、context、state API。
 - [`standards/coding-standard.md`](standards/coding-standard.md)：编码、命名、API 和文档规范。
+- [`standards/language-policy.md`](standards/language-policy.md)：语言选型和 ABI 规则。
 - [`development/environment.md`](development/environment.md)：本地开发环境和命令。
 - [`development/hardware-validation.md`](development/hardware-validation.md)：硬件验证如何进入 SDK contract。
 - [`ci-cd/`](ci-cd/)：CI/CD 基线、release gate 和硬件验证边界。

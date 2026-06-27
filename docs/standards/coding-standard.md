@@ -31,6 +31,7 @@
 
 - `docs/SDK/bible/SDK_DESIGN_OVERVIEW.md` 是唯一 bible。
 - 其它文档只能解释当前实现、API、开发环境、CI/CD 或验证方法。
+- 语言选型规则放在 `docs/standards/language-policy.md`，不能命名为第二个 bible。
 - Mermaid 图只画局部关系，节点用短英文，长解释写正文。
 
 ## 复杂度控制

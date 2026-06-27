@@ -2,6 +2,18 @@
 
 本页定义 Meiso SDK V0.1 的初版 API 形状。`SDK_DESIGN_OVERVIEW.md` 仍是唯一 bible；本页只把 bible 落成可开发、可测试的 contract。
 
+## Spec Index
+
+这些页面是当前 V0.1 contract 的专项 spec：
+
+- [Wire Protocol](./specs/wire-protocol.md)：消息头、对象 ID、通道语义、版本兼容、错误码。
+- [Capability Profile](./specs/capability-profile.md)：设备能力、渲染等级、传感器能力、功耗档位。
+- [State Machines](./specs/state-machines.md)：连接、Feature Lease、传感器、资产同步、AI Tool。
+- [Time Model](./specs/time-model.md)：时钟同步、timestamp、`validUntil`、`displayTime`。
+- [Render Profile](./specs/render-profile.md)：Meiso Profile 0/1/2 支持和禁止的能力。
+- [Security Policy](./specs/security-policy.md)：相机、麦克风、眼动、用户确认、离线策略。
+- [Fault Model](./specs/fault-model.md)：延迟、丢包、乱序、断连、资产缺失、Host 消失。
+
 ## 命名
 
 - `Host` 是业务和计算侧角色名。
@@ -11,7 +23,7 @@
 
 ## Host SDK
 
-Host SDK 暴露五组 API：
+Host SDK 暴露六组 API：
 
 | API | 责任 |
 |---|---|
