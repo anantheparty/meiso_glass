@@ -29,7 +29,6 @@ export default withMermaid(defineConfig({
         text: 'Spec',
         items: [
           { text: 'Overview', link: '/spec/' },
-          { text: 'AI Native Interface', link: '/spec/ai-native' },
           { text: 'Wire Protocol', link: '/spec/wire-protocol' },
           { text: 'Capability Profile', link: '/spec/capability-profile' },
           { text: 'State Machines', link: '/spec/state-machines' },
@@ -58,6 +57,14 @@ export default withMermaid(defineConfig({
         text: 'CI/CD',
         items: [
           { text: 'Overview', link: '/ci-cd/' }
+        ]
+      },
+      {
+        text: 'Decisions',
+        items: [
+          { text: 'Overview', link: '/decisions/' },
+          { text: 'Core Wire Transport', link: '/decisions/0001-core-wire-transport' },
+          { text: 'Remove AI Native Interface', link: '/decisions/0002-remove-ai-native-interface' }
         ]
       }
     ],
