@@ -5,6 +5,7 @@ ALLOWED_DOC_TOP_LEVEL = {
     "README.md",
     "SDK",
     "ci-cd",
+    "decisions",
     "development",
     "index.md",
     "origin",

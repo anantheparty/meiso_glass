@@ -4,7 +4,7 @@
 
 ## Common Rules
 
-- 状态变更必须有明确 owner：Host、Edge、Transport、Policy、Adapter 或 AI runtime。
+- 状态变更必须有明确 owner：Host、Edge、Transport、Policy 或 Adapter。
 - 会产生 side effect 的 transition 必须有 idempotency key。
 - Unknown 不是安全状态。遇到 unknown 必须 defer、reject 或进入 degraded。
 - Durable state 和 in-memory state 必须分开记录。
@@ -35,7 +35,7 @@ Owner：Transport Manager。
 | `syncing` | `active` | capability/time sync ok | 发布 connection ready |
 | `active` | `degraded` | high latency / loss / thermal | 降低 channel 或 capability |
 | `active` | `reconnecting` | heartbeat timeout | 停止新 high-power request |
-| `reconnecting` | `active` | session restored | 重发未确认 high_reliable |
+| `reconnecting` | `active` | session restored | 重发未确认 `reliable_ordered` frame |
 | any | `closed` | explicit close | 释放 transient lease |
 
 ## Feature Lease
@@ -83,7 +83,7 @@ Owner：Edge Sensor Manager。
 
 - `subscriptionId` 是订阅主 ID。
 - 每个 sample 必须带 `subscriptionId`、`sequence`、`timestamp`。
-- `latest_wins` sensor 可以丢旧 sample；`high_reliable` sensor 不能用于高频流。
+- `unreliable_latest` sensor 可以丢旧 sample；`reliable_ordered` sensor 不能用于高频流。
 - 订阅必须绑定 feature lease 或明确标记为不需要 lease。
 
 ## Asset Sync
@@ -108,27 +108,3 @@ Owner：Asset Cache。
 - 缺失 asset 不阻塞整个 scene；Edge 显示 placeholder 并异步请求。
 - `assetId` 建议是 content hash，chunk retry 必须可恢复。
 - Asset 校验失败必须返回 `asset_missing` 或 `profile_unsupported`。
-
-## AI Tool
-
-Owner：Host AI runtime，Policy Manager 对敏感动作有最终裁决权。
-
-| State | Meaning |
-|---|---|
-| `registered` | ToolSpec 已注册 |
-| `callable` | 当前 session 可调用 |
-| `queued` | ToolCall 已创建 |
-| `policy_check` | 正在检查权限、lease 和 confirmation |
-| `executing` | 正在调用 SDK API |
-| `succeeded` | ToolResult `ok` |
-| `rejected` | ToolResult `rejected` |
-| `failed` | ToolResult `error` |
-| `expired` | 超过 timeout 或 context/state 已过期 |
-
-规则：
-
-- Tool name 必须使用 `meiso.` 前缀。
-- ToolCall 必须有 `callId`，side-effect tool 必须有 idempotency key。
-- Tool 不得绕过 Device、Scene、HUD、Sensor、Telemetry API。
-- State patch 必须检查 `baseVersion`。
-- Context 必须可过期和可压缩。

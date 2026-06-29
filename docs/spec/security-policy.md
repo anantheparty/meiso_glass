@@ -1,17 +1,16 @@
 # Security Policy Spec
 
-Security / Policy 的核心原则：Host 可以请求，Edge 最终裁决。任何 AI tool、engine wrapper 或 app API 都不能绕过 Edge policy。
+Security / Policy 的核心原则：Host 可以请求，Edge 最终裁决。任何 engine wrapper 或 app API 都不能绕过 Edge policy。
 
 ## Actors
 
 | Actor | Responsibility |
 |---|---|
 | `host_app` | 发起业务请求 |
-| `host_daemon` | 维护 session、tool、state、asset 和 transport |
+| `host_daemon` | 维护 session、state、asset 和 transport |
 | `edge_runtime` | 执行 device、render、sensor 和 display |
 | `policy_manager` | 最终决定权限、lease、确认和降级 |
 | `user` | 对 camera、microphone、eye 等敏感能力确认 |
-| `ai_agent` | 只能通过 `meiso.*` tool 使用 SDK |
 
 ## Sensitive Features
 
@@ -72,16 +71,6 @@ Host 消失或连接断开时：
 - Edge 可以继续显示 System HUD。
 - Edge 可以继续使用本地 safety、thermal、battery policy。
 - App HUD 和 scene 可以保留最近安全 snapshot，但必须受 `validUntil` 限制。
-
-## AI Tool Policy
-
-AI tool 必须遵守：
-
-- tool name 使用 `meiso.` 前缀。
-- tool spec 声明 channel、lease、confirmation 和 timeout。
-- 打开 camera、microphone、eye、display、network 的 tool 必须走 FeatureRequest。
-- AI 不能直接发底层 protocol 绕过 Host SDK。
-- ToolResult `rejected` 必须包含 policy reason。
 
 ## Data Minimization
 

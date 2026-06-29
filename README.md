@@ -6,8 +6,8 @@ Host 负责业务逻辑、AI、物理、场景权威状态和资产生产。Edge
 
 ## 当前范围
 
-- Meiso Protocol：versioned header、logical channel、payload length 校验。
-- Host contract：Device、Scene、HUD、Sensor、Telemetry 和 AI-native interface。
+- Meiso Protocol：binary core frame、delivery class、payload length 和 CRC 校验。
+- Host contract：Device、Scene、HUD、Sensor 和 Telemetry。
 - Edge Runtime：FeatureRequest lease、Scene Replica、HUD 合成顺序、Frame Scheduler contract。
 - Render Profile 0：OpenGL ES 2.0 的最小可移植渲染约束。
 - Mock 和 reference path：用于本机开发，不定义最终硬件绑定。

@@ -8,12 +8,11 @@
 
 - [Wire Protocol](./wire-protocol.md)：消息头、对象 ID、通道语义、版本兼容、错误码。
 - [Capability Profile](./capability-profile.md)：设备能力、渲染等级、传感器能力、功耗档位。
-- [State Machines](./state-machines.md)：连接、Feature Lease、传感器、资产同步、AI Tool。
+- [State Machines](./state-machines.md)：连接、Feature Lease、传感器、资产同步。
 - [Time Model](./time-model.md)：时钟同步、timestamp、`validUntil`、`displayTime`。
 - [Render Profile](./render-profile.md)：Meiso Profile 0/1/2 支持和禁止的能力。
 - [Security Policy](./security-policy.md)：相机、麦克风、眼动、用户确认、离线策略。
 - [Fault Model](./fault-model.md)：延迟、丢包、乱序、断连、资产缺失、Host 消失。
-- [AI Native Interface](./ai-native.md)：AI tools、context、state 的接口契约。
 
 ## 命名
 
@@ -24,7 +23,7 @@
 
 ## Host Contract
 
-Host 侧 contract 暂定六组接口：
+Host 侧 contract 暂定五组接口：
 
 | API | 责任 |
 |---|---|
@@ -33,7 +32,6 @@ Host 侧 contract 暂定六组接口：
 | `hud` | 提交 App HUD 的 text、image、panel、progress、anchor、layout |
 | `sensor` | 订阅 camera、audio、eye、IMU 或 Edge 本地处理结果 |
 | `telemetry` | 读取温度、电量、FPS、丢帧、网络、缓存和错误 |
-| `ai` | 面向 agent 的 tools、context、state API |
 
 Python 入口：
 
@@ -51,57 +49,36 @@ msg = host.device.request_feature(
 )
 ```
 
-## AI Native Interface
+## Meiso Core Wire
 
-Host contract 暂定暴露 `host.ai`，用于 agent-friendly 的工具、上下文和状态管理。
-
-核心对象：
-
-- `ToolSpec`
-- `ToolCall`
-- `ToolResult`
-- `ContextItem`
-- `ContextPacket`
-- `StateSnapshot`
-- `StatePatch`
-
-规则：
-
-- tool 名字必须使用 `meiso.` 前缀。
-- tool 必须声明 logical channel。
-- 会打开 Edge 高功耗功能的 tool 必须通过 lease。
-- state patch 必须带 `base_version`。
-- context packet 必须可压缩，不能无限增长。
-
-详细设计见 [AI Native Interface](./ai-native.md)。
-
-## Meiso Protocol Header
-
-所有 Meiso message 的 wire header 使用这些字段：
+Core wire 使用二进制 frame，不使用 JSON envelope。固定头只承载接收、长度、校验和低层传输需要的信息：
 
 | Field | 说明 |
 |---|---|
-| `protocolVersion` | 当前为 `1` |
-| `sessionId` | Host/Edge 会话或逻辑连接 ID |
-| `messageType` | `feature_request`、`scene_snapshot` 等 |
-| `channel` | `high_reliable`、`latest_wins`、`low_reliable`、`low_power` |
-| `sequence` | 当前 channel 内的序号 |
-| `sourceTimestamp` | 单调时间戳 |
-| `payloadLength` | canonical JSON payload 长度 |
-| `flags` | bit flags，V0.1 默认为 `0` |
+| `magic` | ASCII `MEIS` |
+| `version` | core wire version |
+| `flags` | fragment、ack echo、retransmit、compressed、encrypted |
+| `frame_type` | numeric core/runtime frame type |
+| `header_ext_len` | TLV extension byte count |
+| `total_len` | whole frame byte count |
+| `payload_len` | payload byte count |
+| `header_crc32c` | fixed header CRC |
+| `body_crc32c` | extension + payload CRC |
 
-legacy role/direction/timestamp 字段不再是 public protocol。
+Runtime payload 可以是 JSON、CBOR、Protobuf、FlatBuffers 或 raw bytes。Core 层只按 bytes 传输和校验。
 
-## Logical Channels
+## Delivery Classes
 
-| Channel | 用途 |
+Logical channel 在 V0.1 改名为 delivery class。它是 core transport 的异步投递语义，不是业务 API 分类：
+
+| Delivery Class | 用途 |
 |---|---|
-| `high_reliable` | 控制、权限、FeatureRequest、实体创建/销毁、关键状态 |
-| `latest_wins` | Transform、连续输入、实时遥测、最新状态 |
-| `low_reliable` | 资产、日志、配置、非紧急同步 |
-| `low_power` | 唤醒、通知、状态查询、缓存内容 ID、建立高速链路 |
+| `reliable_ordered` | 控制、权限、FeatureRequest、关键状态 |
+| `unreliable_latest` | Transform、连续输入、实时遥测、最新状态 |
+| `bulk_resumable` | 资产、日志、配置、replay |
+| `tiny_control` | 唤醒、状态查询、缓存内容 ID、建立高速链路 |
 
-`low_power` 不允许实时 3D scene stream 或大资产。
+Transport ack 不代表业务成功。业务成功或失败必须由 runtime response 表达。
 
 ## FeatureRequest
 

@@ -6,7 +6,7 @@
 
 - [`SDK/`](SDK/)：唯一 bible 和 SDK 文档入口。
 - [`spec/`](spec/)：V0.1 初版 contract spec。
-- [`spec/ai-native.md`](spec/ai-native.md)：AI-native tools、context、state 接口契约。
+- [`decisions/`](decisions/)：影响长期 contract 的决策记录。
 - [`standards/coding-standard.md`](standards/coding-standard.md)：编码、命名、API 和文档规范。
 - [`standards/language-policy.md`](standards/language-policy.md)：语言选型和 ABI 规则。
 - [`development/environment.md`](development/environment.md)：本地开发环境和命令。

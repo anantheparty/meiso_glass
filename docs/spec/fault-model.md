@@ -6,9 +6,9 @@ Meiso SDK 默认网络和设备都不可靠。V0.1 不承诺 exactly-once transp
 
 | Fault | Detection | Required Behavior | Telemetry |
 |---|---|---|---|
-| latency spike | RTT、heartbeat、channel queue age | high_reliable 保持，latest_wins 丢旧包 | `network_latency` |
-| packet loss | missing sequence、timeout | high_reliable retry，latest_wins skip | `packet_loss` |
-| reorder | sequence regression | high_reliable reorder/drop，latest_wins compare object version | `reordered_packets` |
+| latency spike | RTT、heartbeat、queue age | `reliable_ordered` 保持，`unreliable_latest` 丢旧包 | `network_latency` |
+| packet loss | missing `packet_seq`、timeout | `reliable_ordered` retry，`unreliable_latest` skip | `packet_loss` |
+| reorder | `packet_seq` regression | `reliable_ordered` reorder/drop，`unreliable_latest` compare object version | `reordered_packets` |
 | duplicate | repeated idempotency key | 返回原结果，不重复 side effect | `duplicate_messages` |
 | disconnect | heartbeat timeout | stop new high-power requests，进入 reconnecting | `disconnect_count` |
 | Host disappears | lease/watchdog timeout | release transient lease，保留 System HUD | `host_timeout` |
@@ -22,33 +22,33 @@ Meiso SDK 默认网络和设备都不可靠。V0.1 不承诺 exactly-once transp
 
 ## Channel Behavior Under Fault
 
-### high_reliable
+### reliable_ordered
 
-- Retry until ack or timeout.
+- Retry until transport ack or timeout.
 - Consumer must dedupe by idempotency key.
 - Side effect happens after validation and policy check.
-- Ack does not equal business success.
+- Transport ack does not equal business success.
 - If retry window expires, sender reports `timeout`.
 
-### latest_wins
+### unreliable_latest
 
 - Old packets can be dropped.
 - Receiver keeps newest value per object key.
 - Missing old packet must not block new value.
 - Stale data past `validUntil` must freeze, hide, or degrade.
 
-### low_reliable
+### bulk_resumable
 
 - Used for asset/log/config/replay.
 - Transfer must be chunked and resumable.
 - Asset hash validates final content.
-- Low reliable must not block high reliable.
+- Bulk transfer must not block `reliable_ordered`.
 
-### low_power
+### tiny_control
 
 - Used only for wake/status/bootstrap.
 - Payload must stay small.
-- If low_power fails, system can remain offline without pretending active.
+- If tiny control fails, system can remain offline without pretending active.
 
 ## Idempotency
 
@@ -61,7 +61,6 @@ Required idempotency keys:
 | scene snapshot | `snapshotId` |
 | HUD update | `updateId` |
 | sensor subscribe | `subscriptionId` |
-| AI tool call | `toolCallId` plus optional `idempotencyKey` |
 | asset chunk | `assetId + chunkIndex + chunkHash` |
 | state patch | `stateId + baseVersion + patchId` |
 

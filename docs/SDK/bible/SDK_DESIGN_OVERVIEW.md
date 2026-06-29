@@ -85,42 +85,40 @@ MEISO SDK V0.1 系统草案
    4.5 Telemetry API
        获取温度、电量、帧率、丢帧、网络延迟、丢包、缓存和错误。
 
-   4.6 AI Native Interface
-       给 agent 暴露 tools、context 和 state，而不是让 agent 直接手写协议包。
-       Tool 必须声明 meiso 前缀、输入输出 schema、logical channel、是否需要 lease 和是否需要确认。
-       Context 必须可过期、可压缩、可引用，避免无限塞入 prompt。
-       State 使用带版本前提的 Snapshot/Patch，避免旧状态覆盖新状态。
-       AI 只能通过 SDK tool 调用 Device、Scene、HUD、Sensor 和 Telemetry API，不能绕过 policy。
-
 5. 网络逻辑通道
-   5.1 High Reliable
+   5.1 Reliable Ordered
        用于控制、权限、创建/销毁实体、关键事件和状态切换。
        有序、可靠、独立队列，不得被资产传输阻塞。
 
-   5.2 Latest Wins
+   5.2 Unreliable Latest
        用于 Transform、速度、眼动、连续输入和实时遥测。
        每个对象独立序号；新数据到达后旧数据可直接丢弃。
        不因旧包丢失而阻塞新包。
 
-   5.3 Low Reliable
+   5.3 Bulk Resumable
        用于资产、日志、配置、非紧急数据库同步。
        可靠但可限速、暂停和断点续传。
 
-   5.4 Low-Power Profile
+   5.4 Tiny Control / Low-Power Profile
        运行于 LoRa 或 BLE。
        只支持唤醒、通知、状态查询、缓存内容 ID 和建立 Wi-Fi。
        不支持实时 3D Scene Stream 和大资产。
 
-6. 通用消息头
-   protocolVersion
-   sessionId
-   messageType
-   channel
-   sequence
-   sourceTimestamp
-   payloadLength
+6. Meiso Core Wire
+   Core wire 使用二进制 frame，不使用 JSON envelope。
+   固定头只包含接收、长度、校验和底层传输需要的信息：
+   magic
+   version
+   fixed_header_len
    flags
-   所有操作尽量幂等；重复消息不得导致重复创建或重复执行。
+   frame_type
+   header_ext_len
+   total_len
+   payload_len
+   header_crc32c
+   body_crc32c
+   业务对象 ID、权限、参数和 JSON 字段只属于 runtime payload。
+   所有会产生副作用的 runtime 操作都必须幂等；重复消息不得导致重复创建或重复执行。
 
 7. 设备功能控制模型
     Host 发送 FeatureRequest：
