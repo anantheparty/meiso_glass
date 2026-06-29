@@ -30,6 +30,19 @@ def test_docs_top_level_is_governed():
     assert entries <= ALLOWED_DOC_TOP_LEVEL
 
 
+def test_docs_directory_entries_use_index_pages():
+    directory_entries = [
+        Path("docs/SDK"),
+        Path("docs/ci-cd"),
+        Path("docs/origin"),
+        Path("docs/spec"),
+    ]
+
+    missing_indexes = [str(path) for path in directory_entries if not (path / "index.md").is_file()]
+
+    assert missing_indexes == []
+
+
 def test_active_docs_do_not_link_removed_bible_files():
     violations = []
     for root in [Path("README.md"), Path("docs")]:

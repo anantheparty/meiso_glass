@@ -75,7 +75,7 @@ tests/                  聚焦 SDK 契约的测试
 ## 文档
 
 - [文档索引](docs/README.md)
-- [SDK 文档索引](docs/SDK/README.md)
+- [SDK 文档索引](docs/SDK/)
 - [唯一 SDK bible](docs/SDK/bible/SDK_DESIGN_OVERVIEW.md)
 - [Spec](docs/spec/)
 - [Coding Standard](docs/standards/coding-standard.md)
