@@ -29,7 +29,13 @@ npm run docs:build
 npm run docs:preview
 ```
 
-dev server 绑定在 `127.0.0.1`，用于本地预览。
+```bash
+npm run docs:ensure
+npm run docs:watch
+npm run docs:stop
+```
+
+dev server 绑定在 `127.0.0.1`，默认端口是 `5173`，用于本地预览。日常本地查看用 `docs:dev`；它使用 VitePress 原生文件监听，改动 `docs/` 后浏览器会热更新。`docs:ensure` 用于后台启动一次或确认本地文档站已启动；`docs:watch` 用于长期保活；`docs:stop` 只停止由 `docs:ensure` 启动并记录 pid 的后台服务。
 
 ## CLI
 

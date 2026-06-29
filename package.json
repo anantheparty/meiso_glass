@@ -4,6 +4,9 @@
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev docs --host 127.0.0.1",
+    "docs:ensure": "bash scripts/docs_dev_ensure.sh",
+    "docs:watch": "bash scripts/docs_dev_watch.sh",
+    "docs:stop": "bash scripts/docs_dev_stop.sh",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs --host 127.0.0.1"
   },
