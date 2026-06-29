@@ -1,5 +1,5 @@
-from pathlib import Path
 import re
+from pathlib import Path
 
 ALLOWED_DOC_TOP_LEVEL = {
     ".vitepress",
