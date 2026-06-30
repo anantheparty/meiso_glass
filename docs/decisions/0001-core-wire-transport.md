@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted for V0.1 spec drafting.
+Partially superseded by [0005 Core Wire Restructure](0005-core-wire-restructure.md).
+
+0001 remains useful for the original decision to reject JSON envelope as Core Wire. The 28-byte header, generic flags, runtime payload codec and generic fragmentation model are no longer current.
 
 ## Context
 

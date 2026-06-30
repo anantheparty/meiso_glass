@@ -15,3 +15,4 @@
 - [0002 Remove AI Native Interface](0002-remove-ai-native-interface.md)
 - [0003 Language Layering](0003-language-layering.md)
 - [0004 State Machine Boundaries](0004-state-machine-boundaries.md)
+- [0005 Core Wire Restructure](0005-core-wire-restructure.md)

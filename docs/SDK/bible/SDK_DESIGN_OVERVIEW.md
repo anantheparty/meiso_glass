@@ -106,18 +106,17 @@ MEISO SDK V0.1 系统草案
 
 6. Meiso Core Wire
    Core wire 使用二进制 frame，不使用 JSON envelope。
-   固定头只包含接收、长度、校验和底层传输需要的信息：
-   magic
-   version
-   fixed_header_len
-   flags
-   frame_type
-   header_ext_len
-   total_len
-   payload_len
-   header_crc32c
-   body_crc32c
-   业务对象 ID、权限、参数和 JSON 字段只属于 runtime payload。
+   Core wire 只包含接收、长度、校验、sequence、delivery class 和少量 core option。
+   V0.1 有两种 frame：
+   normal frame：20-byte fixed header，用于 Wi-Fi、QUIC payload、IPC、serial debug。
+   tiny frame：6-byte low-power header，用于 wake、status、probe 和极小控制包。
+   Core wire 不携带 runtime message name、payload codec、object id、timestamp、权限或业务参数。
+   Runtime V0.1 使用 Meiso Object Protocol：
+   object_id
+   interface_id
+   interface_version
+   opcode
+   typed args
    所有会产生副作用的 runtime 操作都必须幂等；重复消息不得导致重复创建或重复执行。
 
 7. 设备功能控制模型

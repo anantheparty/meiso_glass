@@ -6,7 +6,10 @@
 
 这些页面是当前 V0.1 contract 的专项 spec：
 
-- [Wire Protocol](./wire-protocol.md)：消息头、对象 ID、通道语义、版本兼容、错误码。
+- [Wire Protocol](./wire-protocol.md)：normal/tiny 二进制 frame、长度、校验、sequence、core option。
+- [Transport Profile](./transport-profile.md)：link profile、delivery class、可靠性/顺序/安全责任归属。
+- [Runtime Protocol](./runtime-protocol.md)：canonical runtime encoding、compact runtime IDs、bootstrap。
+- [Object Protocol](./object-protocol.md)：对象 ID、interface、opcode、生命周期、异步 request/event。
 - [Host Edge Contract](./host-edge-contract.md)：Host-side SDK、Edge-side runtime 和 shared core 边界。
 - [Capability Profile](./capability-profile.md)：设备能力、渲染等级、传感器能力、功耗档位。
 - [State Machines](./state-machines.md)：Host、Edge、link、Feature Lease、传感器、资产缓存状态。
@@ -14,6 +17,8 @@
 - [Render Profile](./render-profile.md)：Meiso Profile 0/1/2 支持和禁止的能力。
 - [Security Policy](./security-policy.md)：相机、麦克风、眼动、用户确认、离线策略。
 - [Fault Model](./fault-model.md)：延迟、丢包、乱序、断连、资产缺失、Host 消失。
+- [Protocol Test Plan](./protocol-test-plan.md)：binary golden vectors、decoder matrix、cross-language tests。
+- [Protocol Migration Plan](./protocol-migration-plan.md)：旧 wire draft 到新分层 spec 的迁移计划。
 
 ## 命名
 
@@ -72,21 +77,14 @@ Edge extension boundary 默认是 C ABI / C adapter。详细边界见 [Host Edge
 
 ## Meiso Core Wire
 
-Core wire 使用二进制 frame，不使用 JSON envelope。固定头只承载接收、长度、校验和低层传输需要的信息：
+Core wire 使用二进制 frame，不使用 JSON envelope。V0.1 分为 normal frame 和 tiny frame：
 
-| Field | 说明 |
+| Frame | 说明 |
 |---|---|
-| `magic` | ASCII `MEIS` |
-| `version` | core wire version |
-| `flags` | fragment、ack echo、retransmit、compressed、encrypted |
-| `frame_type` | numeric core/runtime frame type |
-| `header_ext_len` | TLV extension byte count |
-| `total_len` | whole frame byte count |
-| `payload_len` | payload byte count |
-| `header_crc32c` | fixed header CRC |
-| `body_crc32c` | extension + payload CRC |
+| `normal` | 20-byte fixed header，承载 Object Protocol payload |
+| `tiny` | 6-byte low-power header，承载 wake/status/probe 小包 |
 
-Runtime payload 可以是 JSON、CBOR、Protobuf、FlatBuffers 或 raw bytes。Core 层只按 bytes 传输和校验。
+Core Wire 不携带 runtime message name、payload codec、object id、timestamp 或权限字段。Runtime payload V0.1 使用 `meiso_object_binary_v1`。
 
 ## Delivery Classes
 
@@ -99,7 +97,7 @@ Logical channel 在 V0.1 改名为 delivery class。它是 core transport 的异
 | `bulk_resumable` | 资产、日志、配置、replay |
 | `tiny_control` | 唤醒、状态查询、缓存内容 ID、建立高速链路 |
 
-Transport ack 不代表业务成功。业务成功或失败必须由 runtime response 表达。
+Transport ack 不代表业务成功。业务成功或失败必须由 Object Protocol event 表达。
 
 ## FeatureRequest
 
