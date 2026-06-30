@@ -2,7 +2,7 @@
 
 本页定义 Meiso Object Protocol V0.1。它位于 Runtime Encoding 内，负责 Host 和 Device Runtime 的对象、接口、opcode、参数和异步事件。
 
-Core Wire 只看到 `frame_kind=data` 和 payload bytes。Object Protocol 才知道 feature、scene、HUD、sensor、asset、telemetry。
+Core Wire 只看到 `runtime_data` payload bytes。Object Protocol 才知道 feature、scene、HUD、sensor、asset、telemetry。
 
 ## 1. Design Stance
 
@@ -17,10 +17,11 @@ V0.1 边界：
 - Object ID 是紧凑整数，不是 string。
 - Interface/version 是 object binding 属性，MUST NOT be repeated in every message。
 - Opcode、direction、new_id、destructor、idempotency、args schema MUST come from IDL/codegen。
+- Per-message correlation key is not universal. If an opcode needs idempotency or correlation, its args schema owns that field.
 
 ## 2. Runtime Payload Shape
 
-Core Wire `data` payload uses [Runtime Protocol](./runtime-protocol.md) `meiso_object_binary_v1`.
+Runtime Encoding `meiso_object_binary_v1` is:
 
 ```text
 object_message | object_message | ...
@@ -29,7 +30,7 @@ object_message | object_message | ...
 Each object message:
 
 ```text
-object_header[12] | args[args_len]
+object_header[8] | args[args_len]
 ```
 
 | Offset | Size | Field | Type | Rule |
@@ -37,18 +38,17 @@ object_header[12] | args[args_len]
 | 0 | 4 | `object_id` | uint32 | dispatch target |
 | 4 | 2 | `opcode` | uint16 | request/event opcode within bound interface |
 | 6 | 2 | `args_len` | uint16 | byte count of args |
-| 8 | 4 | `serial` | uint32 | sender-local object-message serial |
 
-`message_len = 12 + args_len`.
+`message_len = 8 + args_len`.
 
-Why the header does not carry `interface_id` or `interface_version`:
+Why the header is only 8 bytes:
 
 - `object_id` maps to a live object record.
-- The live object record already stores interface id and negotiated version.
-- Repeating interface/version costs 4 bytes per message and creates mismatch states.
+- The live object record stores interface id and negotiated version.
 - Direction and opcode validity are generated from the bound interface table.
+- Message serial is not universal; reliable delivery and duplicate accounting belong to Link Profile, and business idempotency belongs to opcode args.
 
-No per-message object flags exist in V0.1. Destructor、new_id、snapshot、idempotent are opcode schema properties, not wire flags.
+No per-message object flags exist in V0.1. Destructor、new_id、snapshot、idempotent、latest-state are opcode schema properties, not wire flags.
 
 ## 3. Object ID Allocation
 
@@ -137,7 +137,7 @@ Host request means desired state was submitted. It does not mean Device hardware
 
 ## 7. Commit Discipline
 
-Object Protocol does not define a single universal commit payload. Commit is an opcode pattern used by state domains that need atomic desired-state changes.
+Object Protocol does not define a universal commit payload. Commit is an opcode pattern used by state domains that need atomic desired-state changes.
 
 Each committing interface IDL MUST define:
 
@@ -151,9 +151,8 @@ Each committing interface IDL MUST define:
 Common rules:
 
 - A commit is atomic within one object commit domain.
-- Core ack means frame arrived and passed Core Wire validation.
+- Core/profile ack means bytes arrived. It does not mean desired state is accepted.
 - `commit_result` means Device validated desired state against capability, policy and resource limits.
-- `runtime_snapshot` means Device observed or applied runtime state.
 - Newer desired versions MAY supersede older unapplied desired versions only when the interface IDL marks the domain as latest-state.
 
 ## 8. Object Error
@@ -167,7 +166,6 @@ Error fields are encoded by IDL, but V0.1 semantic fields are:
 | `error_code` | stable numeric code |
 | `failed_object_id` | target object |
 | `failed_opcode` | opcode involved |
-| `failed_serial` | original sender serial |
 | `severity` | `warning`, `recoverable`, `fatal_object`, `fatal_session` |
 | `retryable` | bool |
 | `details` | typed binary detail from IDL |
