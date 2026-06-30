@@ -1,33 +1,33 @@
-# Object Protocol Spec
+# 对象协议规范
 
-本页定义 Meiso Object Protocol V0.1。它位于 Runtime Encoding 内，负责 Host 和 Device Runtime 的对象、接口、opcode、参数和异步事件。
+本页定义 Meiso Object Protocol V0.1。它位于 Runtime Encoding 内，负责 Host 和 Device Runtime 之间的对象、接口、opcode、参数和异步事件。
 
 Core Wire 只看到 `runtime_data` payload bytes。Object Protocol 才知道 feature、scene、HUD、sensor、asset、telemetry。
 
-## 1. Design Stance
+## 1. 设计立场
 
 Object Protocol 借鉴 Wayland 的 object/interface/opcode 模型，但不复制 Wayland 的显示语义。
 
 V0.1 边界：
 
-- Host owns desired state.
-- Device owns runtime state.
+- Host 拥有 desired state。
+- Device 拥有 runtime state。
 - Request/event 都是异步消息。
 - Transport ack 不等于 request accepted。
 - Object ID 是紧凑整数，不是 string。
-- Interface/version 是 object binding 属性，MUST NOT be repeated in every message。
-- Opcode、direction、new_id、destructor、idempotency、args schema MUST come from IDL/codegen。
-- Per-message correlation key is not universal. If an opcode needs idempotency or correlation, its args schema owns that field.
+- Interface/version 是 object binding 属性，不得在每条 message 中重复携带。
+- Opcode、direction、new_id、destructor、idempotency、args schema 必须来自 IDL/codegen。
+- Per-message correlation key 不是通用字段；如果某个 opcode 需要幂等或关联字段，应由该 opcode 的 args schema 定义。
 
-## 2. Runtime Payload Shape
+## 2. Runtime Payload 形状
 
-Runtime Encoding `meiso_object_binary_v1` is:
+Runtime Encoding `meiso_object_binary_v1` 是一串 object message：
 
 ```text
 object_message | object_message | ...
 ```
 
-Each object message:
+每个 object message：
 
 ```text
 object_header[8] | args[args_len]
@@ -36,21 +36,21 @@ object_header[8] | args[args_len]
 | Offset | Size | Field | Type | Rule |
 |---:|---:|---|---|---|
 | 0 | 4 | `object_id` | uint32 | dispatch target |
-| 4 | 2 | `opcode` | uint16 | request/event opcode within bound interface |
-| 6 | 2 | `args_len` | uint16 | byte count of args |
+| 4 | 2 | `opcode` | uint16 | bound interface 内的 request/event opcode |
+| 6 | 2 | `args_len` | uint16 | args byte count |
 
-`message_len = 8 + args_len`.
+`message_len = 8 + args_len`。
 
-Why the header is only 8 bytes:
+Header 只有 8 bytes 的原因：
 
-- `object_id` maps to a live object record.
-- The live object record stores interface id and negotiated version.
-- Direction and opcode validity are generated from the bound interface table.
-- Message serial is not universal; reliable delivery and duplicate accounting belong to Link Profile, and business idempotency belongs to opcode args.
+- `object_id` 映射到 live object record。
+- Live object record 已保存 interface id 和 negotiated version。
+- Direction 和 opcode validity 由 bound interface table 生成。
+- Message serial 不是通用需求；可靠投递和重复包统计属于 Link Profile，业务幂等属于 opcode args。
 
-No per-message object flags exist in V0.1. Destructor、new_id、snapshot、idempotent、latest-state are opcode schema properties, not wire flags.
+V0.1 没有 per-message object flags。Destructor、new_id、snapshot、idempotent、latest-state 都是 opcode schema 属性，不是 wire flag。
 
-## 3. Object ID Allocation
+## 3. Object ID 分配
 
 | Range | Owner |
 |---:|---|
@@ -60,17 +60,17 @@ No per-message object flags exist in V0.1. Destructor、new_id、snapshot、idem
 | `0x80000000..0xFFFFFFFE` | Device-created objects |
 | `0xFFFFFFFF` | reserved invalid |
 
-Rules:
+规则：
 
-- Sender MUST only allocate IDs from its owned range.
-- `object_id=1` is live after runtime bootstrap.
-- A new object can only be created by an opcode whose IDL declares `new_id`.
-- Receiver MUST reject unknown object, wrong opcode, unsupported version, wrong direction, duplicate live ID or reserved ID.
-- Session reset destroys transient objects and proxies.
+- Sender 只能从自己拥有的范围分配 ID。
+- Runtime bootstrap 后，`object_id=1` 必须为 live。
+- 只有 IDL 声明了 `new_id` 的 opcode 才能创建新对象。
+- Receiver 必须拒绝 unknown object、wrong opcode、unsupported version、wrong direction、duplicate live ID 或 reserved ID。
+- Session reset 会销毁 transient objects 和 proxies。
 
 ## 4. Registry
 
-`object_id=1` is `meiso_registry`.
+`object_id=1` 是 `meiso_registry`。
 
 | Opcode | Direction | Name | Args |
 |---:|---|---|---|
@@ -80,9 +80,9 @@ Rules:
 | `3` | Host to Device | `sync` | `sync_id` |
 | `4` | Device to Host | `done` | `sync_id`, `registry_revision` |
 
-Interface names exist in IDL/docs/debug metadata. They MUST NOT be carried in every runtime message.
+Interface name 只存在于 IDL、文档和 debug metadata 中，不得在每条 runtime message 中携带。
 
-## 5. Initial Interfaces
+## 5. 初始接口
 
 | Interface ID | Interface | Owner Boundary |
 |---:|---|---|
@@ -100,19 +100,19 @@ Interface names exist in IDL/docs/debug metadata. They MUST NOT be carried in ev
 | `0x0410` | `meiso_asset_cache` | Device owns cache state and misses |
 | `0x0500` | `meiso_telemetry` | Device reports runtime/health/fault state |
 
-Business messages live here, not in Core Wire:
+业务消息属于 Object Protocol，不属于 Core Wire：
 
-| Old Concept | Object Protocol Home |
+| 旧概念 | Object Protocol 归属 |
 |---|---|
 | `feature_request` | `meiso_feature_manager.request_lease` |
-| `scene_snapshot` | `meiso_scene.commit` or `meiso_scene.runtime_snapshot` |
-| `hud_update` | `meiso_app_hud.set_*` plus `commit` |
+| `scene_snapshot` | `meiso_scene.commit` 或 `meiso_scene.runtime_snapshot` |
+| `hud_update` | `meiso_app_hud.set_*` 加 `commit` |
 | `sensor_sample` | `meiso_sensor_stream.sample` |
 | `asset_chunk` | `meiso_asset_catalog.chunk` |
 
-## 6. Desired State And Runtime State
+## 6. Desired State 与 Runtime State
 
-Host-owned desired state:
+Host-owned desired state：
 
 | Area | Host Owns |
 |---|---|
@@ -122,7 +122,7 @@ Host-owned desired state:
 | sensor | subscription request |
 | asset | source catalog and chunks |
 
-Device-owned runtime state:
+Device-owned runtime state：
 
 | Area | Device Owns |
 |---|---|
@@ -133,33 +133,33 @@ Device-owned runtime state:
 | power/thermal | forced downgrade and emergency stop |
 | assets | cache state, validation and placeholder behavior |
 
-Host request means desired state was submitted. It does not mean Device hardware state has changed.
+Host request 只表示 desired state 已提交，不表示 Device 硬件状态已经改变。
 
-## 7. Commit Discipline
+## 7. Commit 纪律
 
-Object Protocol does not define a universal commit payload. Commit is an opcode pattern used by state domains that need atomic desired-state changes.
+Object Protocol 不定义通用 commit payload。Commit 是需要原子 desired-state 变更的接口使用的 opcode 模式。
 
-Each committing interface IDL MUST define:
+每个 committing interface 的 IDL 必须定义：
 
-- Which object owns the desired state.
-- Whether commits are full snapshot, delta, or both.
-- The version field width and monotonic rule.
-- Whether stale base versions are rejected or superseded.
-- Whether `valid_until_ns` is present.
-- Whether the result is `commit_result`, `runtime_snapshot`, or domain-specific event.
+- 哪个 object 拥有 desired state。
+- commit 是 full snapshot、delta，还是两者都支持。
+- version 字段宽度和单调规则。
+- stale base version 是被拒绝还是可被 supersede。
+- 是否包含 `valid_until_ns`。
+- 结果事件是 `commit_result`、`runtime_snapshot`，还是 domain-specific event。
 
-Common rules:
+通用规则：
 
-- A commit is atomic within one object commit domain.
-- Core/profile ack means bytes arrived. It does not mean desired state is accepted.
-- `commit_result` means Device validated desired state against capability, policy and resource limits.
-- Newer desired versions MAY supersede older unapplied desired versions only when the interface IDL marks the domain as latest-state.
+- Commit 在一个 object commit domain 内是原子的。
+- Core/profile ack 只表示 bytes 到达，不表示 desired state 已接受。
+- `commit_result` 表示 Device 已根据 capability、policy 和 resource limit 验证 desired state。
+- 只有当 interface IDL 将 domain 标记为 latest-state 时，新 desired version 才能 supersede 尚未应用的旧 desired version。
 
 ## 8. Object Error
 
-Object-level errors use `meiso_object.error` event. They are not Core Wire parse errors.
+Object-level error 使用 `meiso_object.error` event。它不是 Core Wire parse error。
 
-Error fields are encoded by IDL, but V0.1 semantic fields are:
+Error fields 由 IDL 编码，但 V0.1 的语义字段是：
 
 | Field | Meaning |
 |---|---|
@@ -170,7 +170,7 @@ Error fields are encoded by IDL, but V0.1 semantic fields are:
 | `retryable` | bool |
 | `details` | typed binary detail from IDL |
 
-Initial error codes:
+初始 error codes：
 
 ```text
 unknown_object
@@ -190,16 +190,16 @@ timeout
 internal_error
 ```
 
-## 9. Lifecycle
+## 9. 生命周期
 
 | State | Meaning |
 |---|---|
-| `Reserved` | ID is not live yet |
-| `Live` | receiver accepts messages for this object |
-| `Destroying` | destructor accepted; only lifecycle/error events are valid |
-| `Dead` | ID is invalid in this session |
+| `Reserved` | ID 还不是 live |
+| `Live` | receiver 接受该 object 的 message |
+| `Destroying` | destructor 已接受；只允许 lifecycle/error event |
+| `Dead` | 该 ID 在当前 session 中无效 |
 
-Lifecycle transition:
+生命周期转换：
 
 ```text
 Reserved -> Live by valid new_id or bind
@@ -208,24 +208,24 @@ Destroying -> Dead after release observed
 Live -> Dead on fatal_session or reset
 ```
 
-## 10. IDL And Codegen
+## 10. IDL 与 Codegen
 
-Meiso Object Protocol MUST be generated from IDL before public implementation locks.
+Meiso Object Protocol 在 public implementation 锁定前必须由 IDL 生成。
 
-Codegen outputs:
+Codegen 输出：
 
-- C headers, encoder, decoder and dispatch tables for Device.
-- Rust typed proxies, event enums and version gates for Host.
-- Python bindings for tests, mocks and CLI.
-- Markdown tables.
-- Binary golden vectors.
-- Schema hash for bootstrap diagnostics.
+- Device 侧 C header、encoder、decoder 和 dispatch table。
+- Host 侧 Rust typed proxy、event enum 和 version gate。
+- 测试、mock 和 CLI 使用的 Python binding。
+- Markdown 表格。
+- Binary golden vector。
+- Bootstrap diagnostics 使用的 schema hash。
 
-IDL rules:
+IDL 规则：
 
-- interface IDs are stable public numbers.
-- opcodes are append-only within an interface version.
-- incompatible args require a new opcode or new interface version.
-- opcode schema declares direction, destructor, new_id, idempotency, latest-state and arg layout.
-- generated code MUST validate object liveness, direction, version, opcode and args length before handler dispatch.
-- string debug names MUST NOT be required for wire compatibility.
+- interface ID 是稳定 public number。
+- 同一 interface version 内 opcode 只能 append-only。
+- 不兼容 args 需要新 opcode 或新 interface version。
+- opcode schema 声明 direction、destructor、new_id、idempotency、latest-state 和 arg layout。
+- 生成代码必须在 handler dispatch 前验证 object liveness、direction、version、opcode 和 args length。
+- string debug name 不得成为 wire compatibility 的必要条件。
