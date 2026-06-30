@@ -21,6 +21,21 @@
 - 公开 CLI 使用 `meiso`，子命令使用 `host`、`edge`、`send`、`probe`。
 - 公开类名前缀使用 `Meiso`，例如 `MeisoHost`、`MeisoEdgeRuntime`、`MeisoMessage`。
 
+## Language Neutrality
+
+本 spec 是语言中立 contract。示例使用 payload shape 或伪代码表达，不代表 SDK 必须用 Python 实现。
+
+实现分层原则：
+
+| Layer | Preferred Implementation |
+|---|---|
+| Edge embedded runtime core | C |
+| Edge HAL / MCU firmware | C |
+| Edge renderer boundary | C ABI |
+| Host core runtime / transport / daemon | Rust |
+| Shared public ABI | C |
+| Python | 上层 binding、prototype、mock、CLI、测试 harness |
+
 ## Host Contract
 
 Host 侧 contract 暂定五组接口：
@@ -33,20 +48,19 @@ Host 侧 contract 暂定五组接口：
 | `sensor` | 订阅 camera、audio、eye、IMU 或 Edge 本地处理结果 |
 | `telemetry` | 读取温度、电量、FPS、丢帧、网络、缓存和错误 |
 
-Python 入口：
+伪代码：
 
-```python
-from meiso_glass.api import FeatureName, FeatureRequest, MeisoHost
+```text
+host = open_host_session("session-dev")
 
-host = MeisoHost(session_id="session-dev")
-msg = host.device.request_feature(
-    FeatureRequest(
-        feature=FeatureName.CAMERA,
-        mode="stream",
-        lease_time_ms=5000,
-        request_id="req-camera-001",
-    )
-)
+request = FeatureRequest {
+  feature: "camera",
+  mode: "stream",
+  leaseTime: 5000,
+  requestId: "req-camera-001"
+}
+
+host.device.request_feature(request)
 ```
 
 ## Meiso Core Wire

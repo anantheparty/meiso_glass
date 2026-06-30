@@ -13,3 +13,4 @@
 
 - [0001 Core Wire Transport](0001-core-wire-transport.md)
 - [0002 Remove AI Native Interface](0002-remove-ai-native-interface.md)
+- [0003 Language Layering](0003-language-layering.md)

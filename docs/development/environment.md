@@ -1,8 +1,8 @@
 # Development Environment
 
-本机开发只需要 Python SDK 环境和 VitePress 文档环境。当前仓库不包含部署配置。
+本机当前只需要 Python prototype 环境和 VitePress 文档环境。Python 用于 mock、CLI、测试和上层验证，不代表 core SDK 语言选择。当前仓库不包含部署配置。
 
-## Python
+## Python Prototype
 
 ```bash
 python3.10 -m venv .venv

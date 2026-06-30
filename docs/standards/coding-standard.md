@@ -11,10 +11,11 @@
 - 文件名、目录名、协议字段、配置键、CLI 参数使用英文。
 - 解释性文档正文使用中文。
 
-## Python
+## Python Prototype
 
-- 支持 Python 3.10+。
-- public contract 优先使用 `dataclass`、`Enum` 和明确的 `to_payload()` / `from_payload()`。
+- 当前 Python 代码只作为 prototype、mock、CLI 和测试 harness，支持 Python 3.10+。
+- Python model 只能表达当前 spec 的测试形态，不能反向定义 core SDK contract。
+- prototype contract 优先使用 `dataclass`、`Enum` 和明确的 `to_payload()` / `from_payload()`。
 - wire protocol 字段由 dedicated model 生成，不允许在业务代码里手写散装 dict。
 - 硬件相关代码必须放在 adapter、profile 或 development validation 中。
 - 核心 SDK 不 import 平台专用 BSP、GPU、VPU、camera driver 名称。

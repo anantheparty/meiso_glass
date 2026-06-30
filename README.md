@@ -14,6 +14,8 @@ Host 负责业务逻辑、AI、物理、场景权威状态和资产生产。Edge
 
 ## 安装
 
+当前仓库里的 Python 包是 prototype、mock、CLI 和本机验证 harness，不代表 core SDK 必须用 Python 实现。
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -63,7 +65,7 @@ npm run docs:build
 ## 项目结构
 
 ```text
-src/meiso_glass/        SDK 包
+src/meiso_glass/        当前 Python prototype / mock / CLI 包
 configs/examples/       平台中立示例配置
 configs/platforms/      板卡专用上电调试 profile
 scripts/                可移植的开发/探针/视频冒烟脚本
@@ -72,7 +74,7 @@ systemd/                通用 service 模板
 tests/                  聚焦 SDK 契约的测试
 ```
 
-应用层代码优先使用 `meiso_glass.api.MeisoHost`，不要直接手写 wire header。
+当前 Python prototype 优先使用 `meiso_glass.api.MeisoHost`。正式 core wire、Host runtime 和 Edge runtime 不以 Python API 作为 contract。
 
 ## 文档
 
