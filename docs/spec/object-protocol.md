@@ -1,176 +1,171 @@
 # Object Protocol Spec
 
-本页定义 Meiso Object Protocol V0.1。它位于 Core Wire 之上，负责 Host 和 Edge runtime 的对象、接口、opcode、参数和异步事件。
+本页定义 Meiso Object Protocol V0.1。它位于 Runtime Encoding 内，负责 Host 和 Device Runtime 的对象、接口、opcode、参数和异步事件。
 
-Core Wire 只看到 `frame_kind=data` 和 payload bytes。Object Protocol 才知道 `feature`、`scene`、`hud`、`sensor`、`asset`、`telemetry`。
+Core Wire 只看到 `runtime_data` payload bytes。Object Protocol 才知道 feature、scene、HUD、sensor、asset、telemetry。
 
-## Design Stance
+## 1. Design Stance
 
 Object Protocol 借鉴 Wayland 的 object/interface/opcode 模型，但不复制 Wayland 的显示语义。
 
-V0.1 的边界：
+V0.1 边界：
 
-- Host owns desired state。
-- Edge owns runtime state。
-- request/event 都是异步消息。
-- transport ack 不等于 request accepted。
-- object id 是紧凑整数，不是 string。
-- interface/opcode 来自 IDL/codegen，不靠每条消息携带可读名称。
+- Host owns desired state.
+- Device owns runtime state.
+- Request/event 都是异步消息。
+- Transport ack 不等于 request accepted。
+- Object ID 是紧凑整数，不是 string。
+- Interface/version 是 object binding 属性，MUST NOT be repeated in every message。
+- Opcode、direction、new_id、destructor、idempotency、args schema MUST come from IDL/codegen。
+- Per-message correlation key is not universal. If an opcode needs idempotency or correlation, its args schema owns that field.
 
-## Runtime Payload Shape
+## 2. Runtime Payload Shape
 
-Core Wire `data` payload 使用 [Runtime Protocol](./runtime-protocol.md) 的 `meiso_object_binary_v1`。一个 payload 可以包含多个 object message：
+Runtime Encoding `meiso_object_binary_v1` is:
 
 ```text
-object_message[message_len] | object_message[message_len] | ...
+object_message | object_message | ...
 ```
 
-每个 object message：
+Each object message:
 
 ```text
-object_header[20] | args[args_len]
+object_header[8] | args[args_len]
 ```
 
 | Offset | Size | Field | Type | Rule |
 |---:|---:|---|---|---|
 | 0 | 4 | `object_id` | uint32 | dispatch target |
-| 4 | 2 | `interface_id` | uint16 | stable numeric interface id |
-| 6 | 2 | `interface_version` | uint16 | negotiated version for this object |
-| 8 | 2 | `opcode` | uint16 | request/event opcode within interface |
-| 10 | 2 | `flags` | uint16 | object message flags |
-| 12 | 4 | `serial` | uint32 | sender-local message serial |
-| 16 | 2 | `args_len` | uint16 | byte count of args |
-| 18 | 2 | `reserved` | uint16 | MUST be 0 in V0.1 |
+| 4 | 2 | `opcode` | uint16 | request/event opcode within bound interface |
+| 6 | 2 | `args_len` | uint16 | byte count of args |
 
-`message_len = 20 + args_len`。
+`message_len = 8 + args_len`.
 
-Object message flags:
+Why the header is only 8 bytes:
 
-| Bit | Name | Rule |
-|---:|---|---|
-| 0 | `destructor` | message destroys `object_id` after valid dispatch |
-| 1 | `has_new_id` | args contain one or more new object ids declared by IDL |
-| 2 | `idempotent` | duplicate `serial` may be ignored by receiver |
-| 3 | `snapshot` | message carries a complete state snapshot for this object domain |
-| 4..15 | reserved | MUST be 0 |
+- `object_id` maps to a live object record.
+- The live object record stores interface id and negotiated version.
+- Direction and opcode validity are generated from the bound interface table.
+- Message serial is not universal; reliable delivery and duplicate accounting belong to Link Profile, and business idempotency belongs to opcode args.
 
-Direction is not a wire field. Receiver derives direction from `sender_role + interface_id + opcode` in generated dispatch tables. Direction mismatch is a protocol error.
+No per-message object flags exist in V0.1. Destructor、new_id、snapshot、idempotent、latest-state are opcode schema properties, not wire flags.
 
-## Object ID Allocation
+## 3. Object ID Allocation
 
 | Range | Owner |
 |---:|---|
 | `0x00000000` | reserved null |
 | `0x00000001` | `meiso_registry` |
 | `0x00000002..0x7FFFFFFF` | Host-created objects |
-| `0x80000000..0xFFFFFFFE` | Edge-created objects |
+| `0x80000000..0xFFFFFFFE` | Device-created objects |
 | `0xFFFFFFFF` | reserved invalid |
 
 Rules:
 
-- Sender MUST only allocate ids from its owned range.
-- `object_id=1` is always live after runtime bootstrap.
+- Sender MUST only allocate IDs from its owned range.
+- `object_id=1` is live after runtime bootstrap.
 - A new object can only be created by an opcode whose IDL declares `new_id`.
-- Receiver MUST reject unknown object, wrong interface, unsupported version, wrong direction, duplicate live id or reserved id.
-- Session reset destroys transient Host-created object proxies.
+- Receiver MUST reject unknown object, wrong opcode, unsupported version, wrong direction, duplicate live ID or reserved ID.
+- Session reset destroys transient objects and proxies.
 
-## Registry
+## 4. Registry
 
-`object_id=1` is `meiso_registry`。
+`object_id=1` is `meiso_registry`.
 
 | Opcode | Direction | Name | Args |
 |---:|---|---|---|
-| `0` | Edge -> Host | `global` | `name_id`, `interface_id`, `version_min`, `version_max`, `capability_bits` |
-| `1` | Edge -> Host | `global_remove` | `name_id` |
-| `2` | Host -> Edge | `bind` | `name_id`, `interface_id`, `interface_version`, `new_object_id` |
-| `3` | Host -> Edge | `sync` | `sync_id` |
-| `4` | Edge -> Host | `done` | `sync_id`, `registry_revision` |
+| `0` | Device to Host | `global` | `name_id`, `interface_id`, `version_min`, `version_max`, `capability_bits` |
+| `1` | Device to Host | `global_remove` | `name_id` |
+| `2` | Host to Device | `bind` | `name_id`, `interface_id`, `interface_version`, `new_object_id` |
+| `3` | Host to Device | `sync` | `sync_id` |
+| `4` | Device to Host | `done` | `sync_id`, `registry_revision` |
 
 Interface names exist in IDL/docs/debug metadata. They MUST NOT be carried in every runtime message.
 
-## Initial Interfaces
+## 5. Initial Interfaces
 
 | Interface ID | Interface | Owner Boundary |
 |---:|---|---|
-| `0x0001` | `meiso_registry` | Edge advertises globals; Host binds objects |
+| `0x0001` | `meiso_registry` | Device advertises globals; Host binds objects |
 | `0x0002` | `meiso_object` | common object error/lifecycle events |
 | `0x0010` | `meiso_session` | runtime session status and close |
-| `0x0020` | `meiso_capability` | Edge capability profile snapshots |
+| `0x0020` | `meiso_capability` | Device capability profile snapshots |
 | `0x0100` | `meiso_feature_manager` | Host requests feature leases |
-| `0x0110` | `meiso_feature_lease` | Edge owns accepted/degraded/revoked lease state |
+| `0x0110` | `meiso_feature_lease` | Device owns accepted/degraded/revoked lease state |
 | `0x0200` | `meiso_scene` | Host owns desired scene state |
 | `0x0210` | `meiso_app_hud` | Host owns desired app HUD state |
 | `0x0300` | `meiso_sensor_manager` | Host requests sensor subscriptions |
-| `0x0310` | `meiso_sensor_stream` | Edge owns sensor sample stream |
+| `0x0310` | `meiso_sensor_stream` | Device owns sensor sample stream |
 | `0x0400` | `meiso_asset_catalog` | Host owns asset catalog/source |
-| `0x0410` | `meiso_asset_cache` | Edge owns cache state and misses |
-| `0x0500` | `meiso_telemetry` | Edge reports runtime/health/fault state |
+| `0x0410` | `meiso_asset_cache` | Device owns cache state and misses |
+| `0x0500` | `meiso_telemetry` | Device reports runtime/health/fault state |
 
-This removes runtime message names from Core Wire. `feature_request` becomes `meiso_feature_manager.request_lease`; `scene_snapshot` becomes `meiso_scene.runtime_snapshot`; `hud_update` becomes `meiso_app_hud.set_element` plus `commit`。
+Business messages live here, not in Core Wire:
 
-## Desired State And Runtime State
+| Old Concept | Object Protocol Home |
+|---|---|
+| `feature_request` | `meiso_feature_manager.request_lease` |
+| `scene_snapshot` | `meiso_scene.commit` or `meiso_scene.runtime_snapshot` |
+| `hud_update` | `meiso_app_hud.set_*` plus `commit` |
+| `sensor_sample` | `meiso_sensor_stream.sample` |
+| `asset_chunk` | `meiso_asset_catalog.chunk` |
+
+## 6. Desired State And Runtime State
 
 Host-owned desired state:
 
 | Area | Host Owns |
 |---|---|
 | feature | requested feature lease intent and idempotency key |
-| scene | desired entity graph, asset refs, display-time intent |
+| scene | desired entity graph, asset refs, display intent |
 | app HUD | desired app HUD elements only |
 | sensor | subscription request |
 | asset | source catalog and chunks |
 
-Edge-owned runtime state:
+Device-owned runtime state:
 
-| Area | Edge Owns |
+| Area | Device Owns |
 |---|---|
 | feature lease | accepted/degraded/rejected/revoked state |
 | renderer | renderable scene replica and frame scheduling |
 | HUD | final composition, System HUD and safety overlays |
-| sensors | hardware adapters, sampling, privacy policy |
+| sensors | hardware adapters, sampling and privacy policy |
 | power/thermal | forced downgrade and emergency stop |
-| assets | cache state, validation, placeholder behavior |
+| assets | cache state, validation and placeholder behavior |
 
-Host request means desired state was submitted. It does not mean Edge hardware state has changed.
+Host request means desired state was submitted. It does not mean Device hardware state has changed.
 
-## Commit Semantics
+## 7. Commit Discipline
 
-State-changing domains such as `meiso_scene` and `meiso_app_hud` use commit-style messages.
+Object Protocol does not define a universal commit payload. Commit is an opcode pattern used by state domains that need atomic desired-state changes.
 
-Commit args MUST include:
+Each committing interface IDL MUST define:
 
-```text
-commit_id              uint64
-base_desired_version   uint32
-desired_version        uint32
-idempotency_key        uint64
-display_time_ns        uint64
-valid_until_ns         uint64
-change_set             binary bytes defined by interface IDL
-```
+- Which object owns the desired state.
+- Whether commits are full snapshot, delta, or both.
+- The version field width and monotonic rule.
+- Whether stale base versions are rejected or superseded.
+- Whether `valid_until_ns` is present.
+- Whether the result is `commit_result`, `runtime_snapshot`, or domain-specific event.
 
-Rules:
+Common rules:
 
 - A commit is atomic within one object commit domain.
-- Core ack means frame arrived and passed Core Wire validation.
-- `commit_result` means Edge validated desired state against capability, policy and resource limits.
-- `runtime_snapshot` means Edge observed or applied runtime state.
-- Newer desired versions MAY supersede older unapplied desired versions in latest-state domains.
-- Stale `base_desired_version` MUST produce `stale_commit` or `conflict` object error.
+- Core/profile ack means bytes arrived. It does not mean desired state is accepted.
+- `commit_result` means Device validated desired state against capability, policy and resource limits.
+- Newer desired versions MAY supersede older unapplied desired versions only when the interface IDL marks the domain as latest-state.
 
-## Object Error
+## 8. Object Error
 
 Object-level errors use `meiso_object.error` event. They are not Core Wire parse errors.
 
-Error fields:
+Error fields are encoded by IDL, but V0.1 semantic fields are:
 
 | Field | Meaning |
 |---|---|
 | `error_code` | stable numeric code |
 | `failed_object_id` | target object |
-| `failed_interface_id` | interface involved |
 | `failed_opcode` | opcode involved |
-| `failed_serial` | original sender serial |
 | `severity` | `warning`, `recoverable`, `fatal_object`, `fatal_session` |
 | `retryable` | bool |
 | `details` | typed binary detail from IDL |
@@ -179,8 +174,7 @@ Initial error codes:
 
 ```text
 unknown_object
-unknown_interface
-unsupported_version
+unsupported_interface_version
 unknown_opcode
 invalid_direction
 invalid_args
@@ -196,43 +190,42 @@ timeout
 internal_error
 ```
 
-## Lifecycle
-
-```mermaid
-stateDiagram-v2
-  [*] --> Reserved
-  Reserved --> Live: valid new_id or bind
-  Live --> Destroying: destructor request/event
-  Destroying --> Dead: release observed
-  Live --> Dead: fatal_session/reset
-  Dead --> [*]
-```
-
-State meaning:
+## 9. Lifecycle
 
 | State | Meaning |
 |---|---|
-| `Reserved` | id is not live yet |
+| `Reserved` | ID is not live yet |
 | `Live` | receiver accepts messages for this object |
-| `Destroying` | destructor has been accepted; only lifecycle/error events are valid |
-| `Dead` | id is invalid in this session |
+| `Destroying` | destructor accepted; only lifecycle/error events are valid |
+| `Dead` | ID is invalid in this session |
 
-## IDL And Codegen
+Lifecycle transition:
 
-Meiso Object Protocol MUST be generated from an IDL before public implementation locks.
+```text
+Reserved -> Live by valid new_id or bind
+Live -> Destroying by destructor opcode
+Destroying -> Dead after release observed
+Live -> Dead on fatal_session or reset
+```
+
+## 10. IDL And Codegen
+
+Meiso Object Protocol MUST be generated from IDL before public implementation locks.
 
 Codegen outputs:
 
-- C headers, encoder, decoder and dispatch tables for Edge.
+- C headers, encoder, decoder and dispatch tables for Device.
 - Rust typed proxies, event enums and version gates for Host.
 - Python bindings for tests, mocks and CLI.
 - Markdown tables.
-- binary golden vectors.
-- schema hash for bootstrap diagnostics.
+- Binary golden vectors.
+- Schema hash for bootstrap diagnostics.
 
 IDL rules:
 
+- interface IDs are stable public numbers.
 - opcodes are append-only within an interface version.
 - incompatible args require a new opcode or new interface version.
-- generated code MUST validate version, direction, object ownership and args length before handler dispatch.
+- opcode schema declares direction, destructor, new_id, idempotency, latest-state and arg layout.
+- generated code MUST validate object liveness, direction, version, opcode and args length before handler dispatch.
 - string debug names MUST NOT be required for wire compatibility.
