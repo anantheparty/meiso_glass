@@ -10,7 +10,7 @@ Meiso SDK 默认网络和设备都不可靠。V0.1 不承诺 exactly-once transp
 | packet loss | missing `packet_seq`、timeout | `reliable_ordered` retry，`unreliable_latest` skip | `packet_loss` |
 | reorder | `packet_seq` regression | `reliable_ordered` reorder/drop，`unreliable_latest` compare object version | `reordered_packets` |
 | duplicate | repeated idempotency key | 返回原结果，不重复 side effect | `duplicate_messages` |
-| disconnect | heartbeat timeout | stop new high-power requests，进入 reconnecting | `disconnect_count` |
+| disconnect | heartbeat timeout | Host enters `lost`; Edge enters `standalone` or keeps `limited` until timeout | `disconnect_count` |
 | Host disappears | lease/watchdog timeout | release transient lease，保留 System HUD | `host_timeout` |
 | Edge restarts | session lost / boot counter changed | Host 重新 sync capability 和 scene snapshot | `edge_restart` |
 | asset missing | cache miss | placeholder + asset_request，不阻塞 whole scene | `asset_missing` |

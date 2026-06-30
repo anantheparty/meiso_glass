@@ -7,8 +7,9 @@
 这些页面是当前 V0.1 contract 的专项 spec：
 
 - [Wire Protocol](./wire-protocol.md)：消息头、对象 ID、通道语义、版本兼容、错误码。
+- [Host Edge Contract](./host-edge-contract.md)：Host-side SDK、Edge-side runtime 和 shared core 边界。
 - [Capability Profile](./capability-profile.md)：设备能力、渲染等级、传感器能力、功耗档位。
-- [State Machines](./state-machines.md)：连接、Feature Lease、传感器、资产同步。
+- [State Machines](./state-machines.md)：Host、Edge、link、Feature Lease、传感器、资产缓存状态。
 - [Time Model](./time-model.md)：时钟同步、timestamp、`validUntil`、`displayTime`。
 - [Render Profile](./render-profile.md)：Meiso Profile 0/1/2 支持和禁止的能力。
 - [Security Policy](./security-policy.md)：相机、麦克风、眼动、用户确认、离线策略。
@@ -62,6 +63,12 @@ request = FeatureRequest {
 
 host.device.request_feature(request)
 ```
+
+## Edge Contract
+
+Edge 侧不是普通应用 SDK，而是设备 runtime contract。Edge 负责接收 core wire、执行 policy、管理 feature lease、控制 adapter、维护 Scene Replica、合成 HUD、调度 frame、发布 telemetry。
+
+Edge extension boundary 默认是 C ABI / C adapter。详细边界见 [Host Edge Contract](./host-edge-contract.md)。
 
 ## Meiso Core Wire
 
