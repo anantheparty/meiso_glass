@@ -1,6 +1,6 @@
 # Runtime Protocol Spec
 
-本页定义 Core Wire `data` payload 的 runtime contract。Core Wire 不选择 JSON、CBOR、Protobuf 或 FlatBuffers。V0.1 只定义一个 canonical runtime encoding。
+本页定义 Runtime Encoding。Core Wire 不选择 JSON、CBOR、Protobuf 或 FlatBuffers。V0.1 只有一个 canonical runtime encoding。
 
 ## 1. Canonical Encoding
 
@@ -12,26 +12,25 @@ meiso_object_binary_v1
 
 Rules:
 
-- Core Wire `frame_kind=data` payload MUST be `meiso_object_binary_v1` unless a link/session profile explicitly negotiates a later codec.
+- Runtime records MUST use `meiso_object_binary_v1` after bootstrap unless a later session profile explicitly negotiates another codec.
 - Debug JSON MAY exist as Host-side tooling adapter, log export or test fixture format.
 - Debug JSON MUST NOT be treated as peer interoperability format.
-- Runtime encoding version is negotiated during runtime bootstrap. It is not carried in every Core Wire frame.
+- Runtime encoding version is session scoped. It is not carried in every record or Core Wire frame.
 
 ## 2. Payload Container
 
-`meiso_object_binary_v1` payload is a sequence of object messages:
+`meiso_object_binary_v1` is a sequence of object messages:
 
 ```text
 object_message | object_message | ...
 ```
 
-Each object message uses the 12-byte header defined in [Object Protocol](./object-protocol.md):
+Each object message uses the 8-byte header defined in [Object Protocol](./object-protocol.md):
 
 ```text
 object_id uint32
 opcode    uint16
 args_len  uint16
-serial    uint32
 args      bytes[args_len]
 ```
 
@@ -75,7 +74,7 @@ Bootstrap establishes:
 - link profile currently in use.
 - capability profile snapshot id.
 
-Bootstrap MAY use normal Core Wire `data` with `meiso_registry` messages, or a profile-specific prelude. Once bootstrap completes, normal runtime messages MUST use object protocol dispatch.
+Bootstrap MAY use a profile-specific prelude or `meiso_registry` messages. Once bootstrap completes, normal runtime messages MUST use object protocol dispatch.
 
 ## 6. Versioning
 
@@ -89,7 +88,7 @@ These versions MUST NOT be collapsed into one `protocolVersion` string.
 
 ## 7. Runtime Parse Errors
 
-Runtime parse errors are object/runtime errors, not Core Wire errors, once Core Wire validation succeeds.
+Runtime parse errors are runtime/object errors, not Core Wire errors, once Core Wire or profile-level record validation succeeds.
 
 | Error | Meaning |
 |---|---|
