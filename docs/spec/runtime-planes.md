@@ -1,154 +1,156 @@
-# Runtime Planes Spec
+# 运行平面规范
 
-本页定义 Meiso SDK V0.1 的三条 runtime plane。它用于避免 SDK 继续按 manager/API 名称膨胀。
+本页定义 Meiso SDK V0.1 的三条运行平面。它用于避免 SDK 继续按照 manager、API 或物理模块名称膨胀。
 
-## 1. Plane Model
+## 1. 平面模型
 
 ```text
 Control Plane
-  decides what may run
+  决定哪些能力可以被启用
 
 Presentation Plane
-  decides what is shown
+  决定用户最终看到什么
 
 Data Plane
-  moves observations out of Device
+  将设备侧观测结果送出
 ```
 
-Object Protocol、Runtime Encoding、Core Wire 和 Transport Profile 只负责承载这些 plane 的消息。它们不是第四条业务 plane。
+Object Protocol、Runtime Encoding、Core Wire 和 Transport Profile 只负责承载这些平面的消息。它们不是第四条业务平面。
 
-## 2. Control Plane
+## 2. 控制平面
 
-Purpose: decide whether a requested capability may become active.
+职责：判断 Host 请求的能力是否可以在 Device 上启用。
 
-Owns:
+控制平面拥有：
 
-- capability snapshot
-- feature lease table
-- permission state
-- session state
-- power and thermal guard inputs
-- policy rejection reasons
+- 能力快照
+- Feature Lease 表
+- 权限状态
+- Session 状态
+- 电量与温度保护输入
+- 策略拒绝原因
 
-Inputs:
+输入：
 
-- Host feature request
-- Device capability
-- user/system permission
-- battery/thermal state
-- link/session state
-- safety state
+- Host 的 Feature 请求
+- Device 能力
+- 用户或系统权限
+- 电量与温度状态
+- 链路与 Session 状态
+- 安全状态
 
-Outputs:
+输出：
 
-- lease accepted
-- lease degraded
-- lease rejected
-- lease expired
-- lease revoked
-- capability update
-- session status
+- Lease accepted
+- Lease degraded
+- Lease rejected
+- Lease expired
+- Lease revoked
+- Capability update
+- Session status
 
-Public V0.1 concept: `FeatureLease`.
+V0.1 的公开概念只有：
 
-Non-public implementation names:
+```text
+FeatureLease
+```
+
+以下名称可以出现在实现内部，但不是 SDK 概念：
 
 - Device Manager
 - Policy Manager
 - Power Manager
 - Sensor Manager
 
-Those may exist in code, but they are not SDK concepts.
+## 3. 呈现平面
 
-## 3. Presentation Plane
+职责：维护最新的安全可见状态，并按照 Device 本地帧时钟进行显示。
 
-Purpose: maintain the latest safe visual state and render it on the Device's local frame schedule.
+呈现平面拥有：
 
-Owns:
+- Scene desired-state replica
+- Asset cache view
+- App HUD desired state
+- System HUD state
+- Render Profile enforcement
+- Frame Loop
+- Placeholder/degraded presentation state
 
-- scene desired-state replica
-- asset cache view
-- app HUD desired state
-- system HUD state
-- render profile enforcement
-- frame loop
-- placeholder/degraded presentation state
+输入：
 
-Inputs:
+- 已接受的 Scene commit
+- Asset catalog/cache 事件
+- 已接受的 App HUD commit
+- 本地姿态与 tracking
+- 系统状态
+- 控制平面的 lease/capability 状态
 
-- accepted scene commit
-- asset catalog/cache events
-- accepted app HUD commit
-- local pose/tracking
-- system status
-- control plane lease/capability state
+输出：
 
-Outputs:
+- 已呈现帧
+- 帧指标
+- stale/freeze/hide 决策
+- asset missing / asset invalid 事件
 
-- presented frame
-- frame telemetry
-- stale/freeze/hide decisions
-- asset missing or asset invalid events
+规则：
 
-Rules:
+- Frame Loop 是 Device Runtime 主干。
+- Frame Loop 读取快照，不等待 Host。
+- App HUD 是 Host 提交的期望状态。
+- System HUD 是 Device Runtime 状态，并拥有最高显示优先级。
+- Asset bytes 不得进入 Scene commit。
 
-- Frame Loop is the spine of Device Runtime.
-- Frame Loop reads snapshots; it does not wait for Host.
-- App HUD is Host desired state.
-- System HUD is Device runtime state and has highest priority.
-- Asset bytes never travel inside scene commits.
+## 4. 数据平面
 
-## 4. Data Plane
+职责：将观测、测量和处理结果从 Device 送往 Host。
 
-Purpose: send observations, measurements and processed results from Device to Host.
+数据平面拥有：
 
-Owns:
+- Sensor stream 对象
+- 处理结果流
+- 输入事件
+- Telemetry 事件
+- 可选 AI context 快照
 
-- sensor stream objects
-- processed result streams
-- input events
-- telemetry events
-- optional AI context snapshots
+输入：
 
-Inputs:
+- 激活中的 Feature Lease
+- 传感器硬件数据
+- 本地处理结果
+- 帧、链路、资产等指标
+- Runtime 错误
 
-- active feature leases
-- sensor hardware data
-- local processing results
-- frame/transport/asset metrics
-- runtime errors
+输出：
 
-Outputs:
+- 传感器样本
+- 处理结果
+- Telemetry 快照或事件
+- 可选 AI context packet
 
-- sensor samples
-- processed results
-- telemetry snapshots/events
-- optional AI context packets
+规则：
 
-Rules:
+- 高功耗传感器流必须有激活中的控制平面 lease。
+- Sensor subscription 不能授予硬件访问权。
+- Telemetry 由 Device 拥有，主要方向是 Device 到 Host。
+- AI 是覆盖在数据平面和控制平面上的 adapter，不是 Runtime 必需依赖。
 
-- High-power sensor streams require an active Control Plane lease.
-- Sensor subscription cannot grant access by itself.
-- Telemetry is Device-owned and primarily Device to Host.
-- AI is an adapter over Data and Control, not a required runtime dependency.
+## 5. 跨平面规则
 
-## 5. Cross-Plane Rules
+- 数据平面不得在没有控制平面 lease 的情况下启用传感器。
+- 呈现平面可以读取控制平面状态，用于显示权限、温度、网络等 System HUD。
+- 呈现平面不得等待数据平面上传完成。
+- 控制平面可以根据 telemetry、温度或安全状态撤销 lease。
+- Host 的期望状态永远不能覆盖 Device 的 System HUD。
+- 传输失败不得阻塞 Frame Loop。
 
-- Data Plane MUST NOT enable sensors without Control Plane lease approval.
-- Presentation Plane MAY read Control Plane state to show permission/thermal/network overlays.
-- Presentation Plane MUST NOT wait for Data Plane upload completion.
-- Control Plane MAY revoke leases based on telemetry, thermal or safety state.
-- Host desired state never overrides Device System HUD.
-- Transport failure must not block Frame Loop.
+## 6. 反模式
 
-## 6. Anti-Patterns
+V0.1 拒绝以下设计：
 
-V0.1 rejects these designs:
-
-- independent `PolicyManager` as a public SDK module.
-- Host API returning transport messages as its main abstraction.
-- AI tool registry as mandatory core SDK surface.
-- sensor subscription bypassing feature lease.
-- render thread reading mutable network state.
-- scene commit carrying asset bytes.
-- Core Wire carrying business message names.
+- 将独立 `PolicyManager` 暴露为公开 SDK 模块。
+- Host API 以返回 transport message 作为主要抽象。
+- AI tool registry 成为 core SDK 必需 surface。
+- Sensor subscription 绕过 Feature Lease。
+- Render thread 读取可变网络状态。
+- Scene commit 携带 asset bytes。
+- Core Wire 携带业务消息名。

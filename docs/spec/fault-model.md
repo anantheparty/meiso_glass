@@ -1,58 +1,58 @@
-# Fault Model Spec
+# 故障模型规范
 
 Meiso SDK 默认网络和设备都不可靠。V0.1 不承诺 exactly-once transport，只通过 idempotency、sequence、state version 和 lease 实现可恢复行为。
 
-## Fault Table
+## 1. 故障表
 
 | Fault | Detection | Required Behavior | Telemetry |
 |---|---|---|---|
-| latency spike | RTT、heartbeat、queue age | `reliable_ordered` 保持，`unreliable_latest` 丢旧包 | `network_latency` |
-| packet loss | missing `packet_seq`、timeout | `reliable_ordered` retry，`unreliable_latest` skip | `packet_loss` |
-| reorder | `packet_seq` regression | `reliable_ordered` reorder/drop，`unreliable_latest` compare object version | `reordered_packets` |
+| latency spike | RTT、heartbeat、queue age | control 保持；latest 丢旧包 | `network_latency` |
+| packet loss | missing sequence、timeout | control 按 profile retry；latest skip | `packet_loss` |
+| reorder | sequence regression | control reorder/drop；latest compare object version | `reordered_packets` |
 | duplicate | repeated idempotency key | 返回原结果，不重复 side effect | `duplicate_messages` |
-| disconnect | heartbeat timeout | Host enters `lost`; Edge enters `standalone` or keeps `limited` until timeout | `disconnect_count` |
+| disconnect | heartbeat timeout | Host enters `lost`; Device enters `standalone` or keeps `limited` until timeout | `disconnect_count` |
 | Host disappears | lease/watchdog timeout | release transient lease，保留 System HUD | `host_timeout` |
-| Edge restarts | session lost / boot counter changed | Host 重新 sync capability 和 scene snapshot | `edge_restart` |
-| asset missing | cache miss | placeholder + asset_request，不阻塞 whole scene | `asset_missing` |
+| Device restarts | session lost / boot counter changed | Host 重新 sync capability 和 scene snapshot | `device_restart` |
+| asset missing | cache miss | placeholder + asset request，不阻塞 whole scene | `asset_missing` |
 | asset corrupt | hash mismatch | reject asset，request retry or mark failed | `asset_corrupt` |
 | stale state | state version mismatch | reject patch with `conflict` | `state_conflict` |
 | time drift | sync uncertainty too high | widen valid window or degrade real-time feature | `time_uncertainty` |
 | thermal high | thermal telemetry / policy | degrade render/sensor/network or revoke lease | `thermal_throttle` |
 | low battery | battery telemetry / policy | shorten lease、disable rich session | `battery_guard` |
 
-## Channel Behavior Under Fault
+## 2. 故障下的 Channel 行为
 
-### reliable_ordered
+### control
 
-- Retry until transport ack or timeout.
-- Consumer must dedupe by idempotency key.
-- Side effect happens after validation and policy check.
-- Transport ack does not equal business success.
-- If retry window expires, sender reports `timeout`.
+- 按 profile retry，直到 ack 或 timeout。
+- Consumer 必须按 idempotency key 去重。
+- Side effect 发生在 validation 和 policy check 之后。
+- Transport/profile ack 不等于 business success。
+- Retry window 过期后，sender 报告 `timeout`。
 
-### unreliable_latest
+### latest
 
-- Old packets can be dropped.
-- Receiver keeps newest value per object key.
-- Missing old packet must not block new value.
-- Stale data past `validUntil` must freeze, hide, or degrade.
+- 旧包可以丢弃。
+- Receiver 每个 object key 保留 newest value。
+- 缺失旧包不得阻塞新值。
+- 超过 `validUntil` 的 stale data 必须 freeze、hide 或 degrade。
 
-### bulk_resumable
+### bulk
 
-- Used for asset/log/config/replay.
-- Transfer must be chunked and resumable.
-- Asset hash validates final content.
-- Bulk transfer must not block `reliable_ordered`.
+- 用于 asset/log/config/replay。
+- Transfer 必须 chunked and resumable。
+- Asset hash 验证最终内容。
+- Bulk transfer 不得阻塞 control。
 
-### tiny_control
+### low_power
 
-- Used only for wake/status/bootstrap.
-- Payload must stay small.
-- If tiny control fails, system can remain offline without pretending active.
+- 只用于 wake/status/bootstrap。
+- Payload 必须保持小。
+- 如果 tiny control 失败，系统可以保持 offline，但不能假装 active。
 
-## Idempotency
+## 3. Idempotency
 
-Required idempotency keys:
+必需 idempotency key：
 
 | Operation | Key |
 |---|---|
@@ -64,41 +64,41 @@ Required idempotency keys:
 | asset chunk | `assetId + chunkIndex + chunkHash` |
 | state patch | `stateId + baseVersion + patchId` |
 
-Duplicate side effects are bugs even if duplicate messages are expected.
+即使 duplicate message 是预期情况，duplicate side effect 仍然是 bug。
 
-## Host Missing
+## 4. Host Missing
 
-If Host disappears:
+如果 Host 消失：
 
-- Edge stops accepting new Host-originated high-power actions.
-- Transient camera/microphone/eye lease expires or is revoked.
-- Latest safe scene snapshot may remain until `validUntil`.
-- System HUD must remain available.
-- Edge attempts reconnect according to transport policy.
+- Device 停止接受新的 Host-originated high-power action。
+- Transient camera/microphone/eye lease 到期或被撤销。
+- 最近安全 scene snapshot 可以保留到 `validUntil`。
+- System HUD 必须保持可用。
+- Device 按 transport policy 尝试重连。
 
-## Asset Missing
+## 5. Asset Missing
 
-If a scene references missing asset:
+如果 scene 引用了缺失 asset：
 
-- Edge renders placeholder for that entity.
-- Edge sends `asset_request`.
-- Scene snapshot remains valid if other entities are renderable.
-- If required safety asset is missing, Edge may reject the scene or show System HUD only.
+- Device 为该 entity 渲染 placeholder。
+- Device 发送 `asset_request`。
+- 如果其它 entities 可渲染，scene snapshot 仍然有效。
+- 如果缺失的是 safety asset，Device 可以拒绝 scene 或只显示 System HUD。
 
-## Partial Success
+## 6. Partial Success
 
-If side effect succeeds but ack fails:
+如果 side effect 成功但 ack 失败：
 
-- Sender may retry.
-- Receiver must recognize idempotency key and return the original result.
+- Sender 可以重试。
+- Receiver 必须识别 idempotency key 并返回原结果。
 
-If ack succeeds but side effect later fails:
+如果 ack 成功但 side effect 后续失败：
 
-- Receiver must send business response or telemetry error.
-- Sender must not infer success from ack alone.
+- Receiver 必须发送 business response 或 telemetry error。
+- Sender 不得从 ack 推断业务成功。
 
-## Open Questions
+## 7. Open Questions
 
-- Exact retry backoff values need transport implementation data.
-- Reconnect session resume rules need persistent session token design.
-- Hardware validation should decide thermal and low battery thresholds.
+- 精确 retry backoff 需要 transport implementation 数据。
+- Reconnect session resume 规则需要 persistent session token 设计。
+- Thermal 和 low battery thresholds 应由硬件验证决定。

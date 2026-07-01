@@ -1,31 +1,31 @@
-# Runtime Protocol Spec
+# Runtime 协议规范
 
 本页定义 Runtime Encoding。Core Wire 不选择 JSON、CBOR、Protobuf 或 FlatBuffers。V0.1 只有一个 canonical runtime encoding。
 
 ## 1. Canonical Encoding
 
-V0.1 canonical runtime codec is:
+V0.1 canonical runtime codec 是：
 
 ```text
 meiso_object_binary_v1
 ```
 
-Rules:
+规则：
 
-- Runtime records MUST use `meiso_object_binary_v1` after bootstrap unless a later session profile explicitly negotiates another codec.
-- Debug JSON MAY exist as Host-side tooling adapter, log export or test fixture format.
-- Debug JSON MUST NOT be treated as peer interoperability format.
-- Runtime encoding version is session scoped. It is not carried in every record or Core Wire frame.
+- Bootstrap 完成后，runtime record 必须使用 `meiso_object_binary_v1`，除非后续 session profile 明确协商了其它 codec。
+- Debug JSON 可以作为 Host-side 工具 adapter、日志导出或测试 fixture 格式存在。
+- Debug JSON 不得被当作 peer interoperability 格式。
+- Runtime encoding version 是 session scoped，不在每条 record 或 Core Wire frame 中携带。
 
 ## 2. Payload Container
 
-`meiso_object_binary_v1` is a sequence of object messages:
+`meiso_object_binary_v1` 是一串 object message：
 
 ```text
 object_message | object_message | ...
 ```
 
-Each object message uses the 8-byte header defined in [Object Protocol](./object-protocol.md):
+每个 object message 使用 [对象协议](./object-protocol.md) 中定义的 8-byte header：
 
 ```text
 object_id uint32
@@ -34,11 +34,11 @@ args_len  uint16
 args      bytes[args_len]
 ```
 
-Receiver MUST stop at exact payload end. Trailing bytes are a parse error.
+Receiver 必须刚好在 payload 末尾停止。任何 trailing bytes 都是 parse error。
 
-## 3. Compact Runtime IDs
+## 3. 紧凑 Runtime ID
 
-V0.1 uses compact numeric IDs on wire:
+V0.1 在 wire 上使用紧凑 numeric ID：
 
 | ID | Width | Owner / Scope |
 |---|---:|---|
@@ -50,59 +50,59 @@ V0.1 uses compact numeric IDs on wire:
 | `asset_alias` | uint64 | session-local alias for asset content hash |
 | `trace_id` | uint64 | diagnostics only |
 
-String IDs can exist in authoring tools, logs and docs. They do not cross the runtime wire except as explicit debug payload.
+String ID 可以存在于 authoring tools、logs 和 docs 中。除显式 debug payload 外，它们不跨 runtime wire。
 
 ## 4. Asset Identity
 
-Assets need both compact wire identity and collision-safe content identity:
+资产需要紧凑 wire identity 和 collision-safe content identity：
 
-- Host catalog assigns `asset_alias uint64` for efficient runtime references.
-- Catalog entry maps alias to content hash, size, media type and render profile requirements.
-- Device MUST validate alias against catalog before accepting asset-dependent commit.
-- If alias maps to missing or mismatched content hash, Device emits `asset_missing` or `asset_mismatch`.
-- Content hash is the long-term identity; alias is session-local acceleration.
+- Host catalog 分配 `asset_alias uint64`，用于高效 runtime 引用。
+- Catalog entry 将 alias 映射到 content hash、size、media type 和 render profile requirements。
+- Device 接受依赖资产的 commit 前，必须根据 catalog 验证 alias。
+- 如果 alias 映射到缺失或 hash 不匹配的内容，Device 发出 `asset_missing` 或 `asset_mismatch`。
+- Content hash 是长期身份；alias 是 session-local 加速身份。
 
 ## 5. Runtime Bootstrap
 
-Bootstrap establishes:
+Bootstrap 建立：
 
-- runtime encoding name and version.
-- object ID ranges.
-- schema hash.
-- supported interface versions.
-- session id.
-- link profile currently in use.
-- capability profile snapshot id.
+- runtime encoding name 和 version。
+- object ID ranges。
+- schema hash。
+- supported interface versions。
+- session id。
+- 当前 link profile。
+- capability profile snapshot id。
 
-Bootstrap MAY use a profile-specific prelude or `meiso_registry` messages. Once bootstrap completes, normal runtime messages MUST use object protocol dispatch.
+Bootstrap 可以使用 profile-specific prelude 或 `meiso_registry` 消息。Bootstrap 完成后，普通 runtime message 必须使用 object protocol dispatch。
 
 ## 6. Versioning
 
-- Runtime encoding version is session scoped.
-- Interface version is object scoped and stored in the live object binding table.
-- Opcode compatibility is interface scoped.
-- Capability profile revision is Device scoped.
-- Link profile revision is transport scoped.
+- Runtime encoding version 是 session scoped。
+- Interface version 是 object scoped，保存在 live object binding table 中。
+- Opcode compatibility 是 interface scoped。
+- Capability profile revision 是 Device scoped。
+- Link profile revision 是 transport scoped。
 
-These versions MUST NOT be collapsed into one `protocolVersion` string.
+这些 version 不得合并成一个 `protocolVersion` string。
 
 ## 7. Runtime Parse Errors
 
-Runtime parse errors are runtime/object errors, not Core Wire errors, once Core Wire or profile-level record validation succeeds.
+一旦 Core Wire 或 profile-level record validation 已经通过，runtime parse error 就是 runtime/object error，不是 Core Wire error。
 
 | Error | Meaning |
 |---|---|
-| `bad_object_message_len` | payload ended inside an object message |
-| `reserved_object_id` | object id is null or reserved invalid |
-| `unknown_object` | object id not live |
-| `unsupported_interface_version` | bound object version not supported by receiver implementation |
-| `unknown_opcode` | opcode not valid for the object's bound interface version |
-| `invalid_direction` | sender role cannot send this opcode |
-| `invalid_args` | typed args fail schema validation |
+| `bad_object_message_len` | payload 在 object message 中途结束 |
+| `reserved_object_id` | object id 是 null 或 reserved invalid |
+| `unknown_object` | object id 不是 live |
+| `unsupported_interface_version` | bound object version 不被 receiver implementation 支持 |
+| `unknown_opcode` | opcode 对该 object 的 bound interface version 无效 |
+| `invalid_direction` | sender role 不能发送该 opcode |
+| `invalid_args` | typed args 未通过 schema validation |
 
-## 8. Debug Representations
+## 8. Debug 表示
 
-Tooling MAY expose a JSON view such as:
+Tooling 可以暴露 JSON view，例如：
 
 ```json
 {
@@ -112,4 +112,4 @@ Tooling MAY expose a JSON view such as:
 }
 ```
 
-This view is for humans and tests. It is not the canonical transport payload.
+该 view 只用于人类阅读和测试，不是 canonical transport payload。
