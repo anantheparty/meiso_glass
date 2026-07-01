@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 ALLOWED_DOC_TOP_LEVEL = {
@@ -46,25 +45,11 @@ def test_docs_directory_entries_use_index_pages():
     assert missing_indexes == []
 
 
-def test_vitepress_sidebar_links_have_matching_docs_pages():
+def test_vitepress_sidebar_is_generated_from_docs_tree():
     config = Path("docs/.vitepress/config.mts").read_text(encoding="utf-8")
-    links = re.findall(r"link: '(/[^']+)'", config)
 
-    missing_pages = []
-    for link in links:
-        if link.startswith(("http://", "https://")):
-            continue
-
-        route = link.removeprefix("/").rstrip("/")
-        if route == "":
-            expected = Path("docs/index.md")
-        else:
-            expected = Path("docs") / route / "index.md" if link.endswith("/") else Path("docs") / f"{route}.md"
-
-        if not expected.is_file():
-            missing_pages.append(link)
-
-    assert missing_pages == []
+    assert "generateSidebar()" in config
+    assert "sidebar: [" not in config
 
 
 def test_active_docs_do_not_link_removed_bible_files():

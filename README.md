@@ -60,7 +60,7 @@ npm run docs:dev
 npm run docs:build
 ```
 
-日常本地查看用 `npm run docs:dev`。需要后台启动一次时用 `npm run docs:ensure`；需要长期保活时只运行 `npm run docs:watch`。改动 `docs/` 后浏览器会热更新。
+日常本地查看用 `npm run docs:dev`。需要后台启动一次时用 `npm run docs:ensure`；需要长期保活时只运行 `npm run docs:watch`。改动 `docs/` 后浏览器会热更新。左侧侧栏由 `docs/` 文件树自动生成，页面标题来自 Markdown 的一级标题。
 
 ## 项目结构
 

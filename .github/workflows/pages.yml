@@ -8,6 +8,7 @@ on:
       - docs/**
       - package.json
       - package-lock.json
+      - scripts/check_docs_sidebar.mjs
       - .github/workflows/pages.yml
 
 permissions:
