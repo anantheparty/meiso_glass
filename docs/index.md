@@ -1,23 +1,13 @@
----
-layout: home
+# Meiso Glass 文档
 
-hero:
-  name: Meiso Glass
-  text: Meiso Host/Edge SDK
-  tagline: A contract-first SDK for dual-device AR systems where Host owns application state and Edge owns device runtime.
-  actions:
-    - theme: brand
-      text: Read Bible
-      link: /SDK/bible/SDK_DESIGN_OVERVIEW
-    - theme: alt
-      text: Read Spec
-      link: /spec/
+当前只有三份权威文档：
 
-features:
-  - title: Single Bible
-    details: SDK_DESIGN_OVERVIEW.md is the only design authority. Derived docs explain spec, standards, development, and CI/CD.
-  - title: Host / Edge
-    details: Host and Edge are the only public roles in SDK naming, protocols, docs, and config.
-  - title: Meiso Protocol
-    details: V0.1 starts from versioned message headers, logical channels, FeatureRequest leases, Scene, HUD, Sensor, and Telemetry contracts.
----
+| 文档 | 作用 |
+|---|---|
+| [系统形式](system.md) | 定义 `Edge`、`Host`、所有权和产品边界 |
+| [链路契约](link.md) | 定义同步对象、投递语义和链路责任 |
+| [开发板验证](validation.md) | 定义当前开发板形式、验证顺序和完成条件 |
+
+[手写方向来源](manual-origin.md) 保护提交 `70c3643` 中的原始设计输入，但不是另一份规范。
+
+文档只提前定义当前实现所需的结构、责任、数据流、约束和验收条件。字节布局、模块内部接口、资源参数和平台细节在进入对应实现前再补充，并以可执行验证为依据。

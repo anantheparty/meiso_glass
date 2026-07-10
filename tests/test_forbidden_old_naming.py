@@ -8,13 +8,10 @@ ACTIVE_PATHS = [
     Path("tests"),
     Path("configs"),
     Path("systemd"),
-    Path("docs/SDK"),
-    Path("docs/spec"),
-    Path("docs/standards"),
-    Path("docs/development"),
-    Path("docs/ci-cd"),
     Path("docs/index.md"),
-    Path("docs/README.md"),
+    Path("docs/system.md"),
+    Path("docs/link.md"),
+    Path("docs/validation.md"),
     Path("docs/.vitepress/config.mts"),
 ]
 

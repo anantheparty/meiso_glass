@@ -4,14 +4,9 @@ import { generateSidebar } from './sidebar.mjs'
 
 export default withMermaid(defineConfig({
   title: 'Meiso Glass',
-  description: 'Open dual-device AR glasses SDK wiki',
+  description: 'Two-part embedded sensing and display system',
   base: process.env.GITHUB_ACTIONS ? '/meiso_glass/' : '/',
   cleanUrls: true,
-  srcExclude: [
-    '**/.DS_Store',
-    'SDK/bible/meiso_sdk_bible_*/**',
-    'SDK/bible/meiso_sdk_bible_*.zip'
-  ],
   themeConfig: {
     logo: '/logo.svg',
     search: {
@@ -30,7 +25,7 @@ export default withMermaid(defineConfig({
       text: '编辑此页'
     },
     footer: {
-      message: 'Maintained as the public-facing wiki for the Meiso Glass SDK.',
+      message: 'Meiso Glass system, link, and validation specifications.',
       copyright: 'Meiso Glass'
     }
   },
