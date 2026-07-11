@@ -5,6 +5,8 @@ Meiso Glass 是一个由 `Edge` 与 `Host` 组成的双端嵌入式系统。
 - `Edge` 负责设备驱动、传感器采集、本地低延迟行为和最终显示。
 - `Host` 负责较重的数据处理，并决定应用希望 `Edge` 显示的内容。
 
+两侧可以分别对同一 object/session 契约开发和验证；暂时没有真实对端时使用 conformance fixture，不建立第二套接口。
+
 当前只验证一条最小闭环：
 
 ```text

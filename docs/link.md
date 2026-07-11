@@ -18,6 +18,8 @@ Physical
 
 Wi-Fi 是当前验证 adapter，不是应用接口。adapter 内部可以使用平台网络栈，但这些细节不得泄漏到 `Application`。
 
+Link 和 object 分发不感知对端使用哪种 CPU core 或操作系统；这些差异只能影响各端 adapter/HAL 的实现与能力报告。
+
 ## Object
 
 `Object` 是一种同步或消息形式，不要求对应 heap object，也不要求发送端长期保存它。

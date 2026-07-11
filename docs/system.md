@@ -28,11 +28,13 @@ Host <-> Edge
 
 产品接口不依赖具体操作系统，也不依赖 Wi-Fi、TCP、UDP、Linux、Android 或某一种 RTOS。
 
+`Host` 与 `Edge` 可以独立启动、开发和验证。真实对端暂时不可用时，测试 fixture 必须实现同一组 object、session 和失败语义，不能另建只适用于 mock 的业务接口。
+
 正式穿戴设备直接呈现应用内容，不需要把内容与 camera 背景合成。
 
 ## 开发板验证形式
 
-当前验证使用：
+当前完整双板验证使用：
 
 - i.MX8MM 开发板作为 `Edge`。
 - Jetson Orin Nano 作为 `Host`。
@@ -40,6 +42,8 @@ Host <-> Edge
 - USB 和串口只用于 bring-up、日志与恢复。
 
 开发板可根据实际 BSP、驱动和 accelerator 支持使用不同操作系统。开发板验证形式不改变产品形式，详见[开发板验证](validation.md)。
+
+单侧验证不要求两块板同时可用：Orin Nano 可单独验证 Linux `Host`，i.MX8MM 可在可用的 A53 或 M4 环境中单独验证 `Edge`。CPU 核和操作系统选择属于平台适配，不改变公开角色。
 
 ## 首个数据流
 
