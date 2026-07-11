@@ -8,6 +8,9 @@ Thumbs.db
 logs/
 *.log
 
+# Local builds and generated previews
+/build/
+
 # Local secrets
 .env
 .env.*
