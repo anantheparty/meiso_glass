@@ -2,7 +2,7 @@
 
 > 状态：Non-normative manual input。不是规范，也不是待实现接口。
 
-本页保护提交 `70c364376a07f7c4a7ec713b8979bf37295e9cb1` 中独有的手写方向。当前权威含义已经收敛到 [system.md](system.md)、[link.md](link.md) 和 [validation.md](validation.md)。
+本页保护提交 `70c364376a07f7c4a7ec713b8979bf37295e9cb1` 中独有的手写方向。当前含义已经收敛到 [系统设计](system.md)、[Composition 契约](composition.md)、[链路契约](link.md) 与 [开发板验证](validation.md)。
 
 旧 `SDK_DESIGN_OVERVIEW.md` 与更早提交中的生成稿逐字节相同，不属于这次独有手写输入，因此不在这里复制。完整历史仍由 Git commit 保存。
 
@@ -18,21 +18,22 @@
 | object `c` | [link.md](link.md) | 有 ACK、有序、不可静默丢失 |
 | object `d` | [link.md](link.md) | 可分块，但必须完整完成或明确失败 |
 | 多 object 共用 packet | [link.md](link.md) | 链路容量和所有 buffer 有界 |
-| `c > b > a > d` | [link.md](link.md) | 拥塞时的保留与准入顺序 |
+| `c > b > a > d` | [link.md](link.md) | Object plane 拥塞时的保留与准入偏好 |
 | discovery、reconnect、heartbeat | [link.md](link.md) | `Link` 管理 session 生命周期 |
 | heartbeat 与时间估计 | [link.md](link.md) | liveness 交换可复用时钟观测 |
-| sensor 配置与 lease | [system.md](system.md)、[validation.md](validation.md) | `Host` 拥有期望配置，`Edge` 拥有 sample |
-| 网卡由 Meiso 持有 | [link.md](link.md) | 应用不拥有 adapter、socket、port 或独立 connection |
-| 三层网络结构 | [link.md](link.md) | 公开模型是 `Physical`、`Link`、`Application` |
+| sensor 配置与 lease | [validation.md](validation.md) | `Host` 拥有期望配置，`Edge` 拥有 sample |
+| HUD、Render Profile | [composition.md](composition.md) | per-layer source 可并存，Edge 拥有最终合成 |
+| 网卡由 Meiso 持有 | [link.md](link.md) | 应用不拥有 adapter、socket、port 或独立 connection；UDP 是内部 reference carrier |
+| 早期三层网络结构 | [link.md](link.md) | 已细分为 Object/Media、LinkSession 与可替换 Carrier |
 | object handle 中的 ACK | [link.md](link.md) | acknowledged form 提供可观察 delivery 状态 |
-| 过大的 `b` object | [link.md](link.md) | 改用 `Bulk`，不能截断 |
+| 过大的 `b` object | [link.md](link.md) | 大型 payload 以 `d` 交付，`b` 通过 content hash 引用 |
 | object 是消息形式 | [link.md](link.md) | 不要求 heap object 或长期生命周期 |
 | 早期 wire 草稿 | [link.md](link.md) | wire 有界、可版本化、可检查长度与传输错误；字节布局延后 |
-| data-link 暂不细写 | [validation.md](validation.md) | 未测量真实硬件前不发明 MTU、queue 和 retry 参数 |
+| data-link 暂不细写 | [link.md](link.md) | 未测量真实硬件前不发明 raw carrier、MTU、queue 和 retry 参数 |
 
 ## Original Manual Text
 
-以下内容保留原始措辞。语言选型尚无 BSP/工具链证据；“不需要 TCP/UDP”等措辞在权威规范中被解释为“不暴露给应用”；早期 byte table 含重复字段和类型错误。它们都不是当前 contract。
+以下内容保留原始措辞。语言选型尚无 BSP/工具链证据；“不需要 TCP/UDP”等措辞现在只表示 carrier 不暴露给应用，并不否定 UDP/IP reference carrier；早期 byte table 含重复字段和类型错误。它们都不是当前 contract。
 
 ### `docs/spec/index.md` manual section
 

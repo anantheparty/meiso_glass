@@ -1,13 +1,13 @@
 # Meiso Glass
 
-Meiso Glass 是一个由 `Edge` 与 `Host` 组成的双端嵌入式系统。
+Meiso Glass 是一套面向分体式 XR/AR 眼镜的开放系统契约。
 
-- `Edge` 负责设备驱动、传感器采集、本地低延迟行为和最终显示。
-- `Host` 负责较重的数据处理，并决定应用希望 `Edge` 显示的内容。
+- `Edge` 是穿戴设备端，拥有传感器、姿态、最终合成与显示安全。
+- `Host` 是外部计算设备，运行业务与重计算，可以是 Linux、macOS 或其他受支持平台。
 
-两侧可以分别对同一 object/session 契约开发和验证；暂时没有真实对端时使用 conformance fixture，不建立第二套接口。
+项目的目标不是绑定某一颗 SoC、图形 API 或无线方案，而是让应用、Host 与 Edge 围绕稳定契约独立演进。渲染后端、操作系统和 carrier 都是可替换实现。
 
-当前只验证一条最小闭环：
+当前仓库只验证一条有界的 C11 合成闭环：
 
 ```text
 Edge camera + timestamped IMU
@@ -16,15 +16,11 @@ Edge camera + timestamped IMU
   -> Edge display
 ```
 
-开发板上会把修正后的 overlay 叠加到 camera 画面，以便直接观察结果。camera 背景合成只是验证工具，不属于正式穿戴设备。
-
-项目仍处于早期验证阶段。当前开发板、操作系统和 Wi-Fi 都只是验证条件，不构成产品接口；仓库暂时没有需要兼容的稳定实现。
+开发板上的 camera 背景合成只是可观察的验证工具，不是产品显示模型。仓库尚未实现生产 LinkSession、连续媒体或通用 Composition API。
 
 ## 进程内验证
 
-当前第一份实现是可移植 C11 合成闭环。它使用固定容量进程内 adapter，不依赖 socket、Wi-Fi、Linux 或 RTOS：
-
-当前可复现路径使用 Visual Studio 2022 的 x64 Developer PowerShell、v143 toolset、Ninja 与 CMake 3.21 以上版本；configure 会拒绝不匹配的 Windows toolchain：
+当前实现使用固定容量进程内 adapter，不依赖 socket、Wi-Fi、Linux 或 RTOS。可复现路径使用 Visual Studio 2022 x64 Developer PowerShell、v143 toolset、Ninja 与 CMake 3.21 以上版本：
 
 ```powershell
 cmake --preset windows-msvc-debug
@@ -32,11 +28,12 @@ cmake --build --preset windows-msvc-debug
 ctest --preset windows-msvc-debug
 ```
 
-测试会运行 object/gate/姿态黄金向量，并执行完整 demo。demo 生成的 `build/slice_preview.ppm` 把修正后的方框叠加到 synthetic target frame；该文件只是开发可视化，不是产品输出格式。
+demo 生成的 `build/slice_preview.ppm` 只是开发可视化，不是产品输出格式。
 
 ## 文档
 
-- [系统形式](docs/system.md)
+- [系统设计](docs/system.md)
+- [Composition 契约](docs/composition.md)
 - [链路契约](docs/link.md)
 - [开发板验证](docs/validation.md)
 - [文档入口](docs/index.md)
