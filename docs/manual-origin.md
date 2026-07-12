@@ -26,7 +26,7 @@
 | 网卡由 Meiso 持有 | [link.md](link.md) | 应用不拥有 adapter、socket、port 或独立 connection；UDP 是内部 reference carrier |
 | 早期三层网络结构 | [link.md](link.md) | 已细分为 Object/Media、LinkSession 与可替换 Carrier |
 | object handle 中的 ACK | [link.md](link.md) | acknowledged form 提供可观察 delivery 状态 |
-| 过大的 `b` object | [link.md](link.md) | 改用 `Bulk`，不能截断 |
+| 过大的 `b` object | [link.md](link.md) | 大型 payload 以 `d` 交付，`b` 通过 content hash 引用 |
 | object 是消息形式 | [link.md](link.md) | 不要求 heap object 或长期生命周期 |
 | 早期 wire 草稿 | [link.md](link.md) | wire 有界、可版本化、可检查长度与传输错误；字节布局延后 |
 | data-link 暂不细写 | [link.md](link.md) | 未测量真实硬件前不发明 raw carrier、MTU、queue 和 retry 参数 |
